@@ -1,0 +1,1 @@
+DO $$ DECLARE definition text; BEGIN SELECT pg_get_functiondef('public.lead_after_write()'::regprocedure) INTO definition; definition := replace(definition, 'case when new.archived_at is null then ''restored'' else ''archived'' end,', '(case when new.archived_at is null then ''restored'' else ''archived'' end)::public.activity_type,'); EXECUTE definition; END $$;
