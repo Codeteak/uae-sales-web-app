@@ -3,8 +3,8 @@
  * Load only from server handlers:
  *   const { sendAppEmail, isMailConfigured } = await import("@/lib/mail.server");
  *
- * Auth emails (signup confirm, password reset) are sent by Supabase Auth —
- * configure the same SMTP values in Supabase → Authentication → SMTP Settings.
+ * Used for: SMTP smoke test, task reminder emails, signup confirm, password reset
+ * (via auth-mail.server.ts + admin generateLink — Supabase does not send those mails).
  */
 import nodemailer from "nodemailer";
 

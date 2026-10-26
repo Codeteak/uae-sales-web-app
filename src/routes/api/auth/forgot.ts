@@ -18,9 +18,10 @@ export const Route = createFileRoute("/api/auth/forgot")({
         if (originDenied) return originDenied;
 
         const ip = clientIp(request);
+        // v2 keys clear prior 429s from testing; still throttled.
         const limited =
-          enforceRateLimit(`auth:forgot:ip:${ip}`, 5, 15 * 60 * 1000) ??
-          enforceRateLimit(`auth:forgot:day:${ip}`, 15, 24 * 60 * 60 * 1000);
+          enforceRateLimit(`auth:forgot:v2:ip:${ip}`, 10, 15 * 60 * 1000) ??
+          enforceRateLimit(`auth:forgot:v2:day:${ip}`, 40, 24 * 60 * 60 * 1000);
         if (limited) return limited;
 
         let email = "";
@@ -30,20 +31,19 @@ export const Route = createFileRoute("/api/auth/forgot")({
           return Response.json({ ok: false, error: "Valid email required" }, { status: 400 });
         }
 
-        const emailLimited = enforceRateLimit(`auth:forgot:email:${email}`, 3, 60 * 60 * 1000);
+        const emailLimited = enforceRateLimit(`auth:forgot:v2:email:${email}`, 5, 60 * 60 * 1000);
         if (emailLimited) return emailLimited;
 
         try {
-          const { createAnonServerClient, appOriginFromEnv } = await import("@/lib/auth-api.server");
-          const supabase = createAnonServerClient();
-          const origin = appOriginFromEnv();
-          const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: origin ? `${origin}/reset-password` : undefined,
-          });
-          if (error) {
-            // Still return generic OK to avoid account enumeration; log for ops.
-            console.warn("[auth/forgot]", error.message);
+          const { isMailConfigured } = await import("@/lib/mail.server");
+          if (!isMailConfigured()) {
+            return Response.json(
+              { ok: false, error: "Email is not configured on the server (SMTP_*)." },
+              { status: 503 },
+            );
           }
+          const { sendPasswordResetEmail } = await import("@/lib/auth-mail.server");
+          await sendPasswordResetEmail(email);
           return Response.json({ ok: true, message: OK_MESSAGE });
         } catch (e) {
           console.error("[auth/forgot]", e);

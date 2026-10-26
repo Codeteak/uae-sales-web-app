@@ -19,8 +19,8 @@ export const Route = createFileRoute("/api/auth/register")({
 
         const ip = clientIp(request);
         const limited =
-          enforceRateLimit(`auth:register:ip:${ip}`, 5, 60 * 60 * 1000) ??
-          enforceRateLimit(`auth:register:burst:${ip}`, 3, 15 * 60 * 1000);
+          enforceRateLimit(`auth:register:v2:ip:${ip}`, 8, 60 * 60 * 1000) ??
+          enforceRateLimit(`auth:register:v2:burst:${ip}`, 5, 15 * 60 * 1000);
         if (limited) return limited;
 
         let parsed: z.infer<typeof bodySchema>;
@@ -31,14 +31,22 @@ export const Route = createFileRoute("/api/auth/register")({
         }
 
         const emailLimited = enforceRateLimit(
-          `auth:register:email:${parsed.email.toLowerCase()}`,
-          3,
+          `auth:register:v2:email:${parsed.email.toLowerCase()}`,
+          5,
           60 * 60 * 1000,
         );
         if (emailLimited) return emailLimited;
 
         try {
-          const { createAnonServerClient, appOriginFromEnv } = await import("@/lib/auth-api.server");
+          const { isMailConfigured } = await import("@/lib/mail.server");
+          if (!isMailConfigured()) {
+            return Response.json(
+              { ok: false, error: "Email is not configured on the server (SMTP_*)." },
+              { status: 503 },
+            );
+          }
+
+          const { createAnonServerClient } = await import("@/lib/auth-api.server");
           const supabase = createAnonServerClient();
           const { data: policy, error: policyError } = await supabase.rpc("registration_policy");
           if (policyError) {
@@ -50,21 +58,14 @@ export const Route = createFileRoute("/api/auth/register")({
             );
           }
 
-          const origin = appOriginFromEnv();
-          const { error } = await supabase.auth.signUp({
+          const { registerAndSendConfirmEmail } = await import("@/lib/auth-mail.server");
+          const result = await registerAndSendConfirmEmail({
             email: parsed.email,
             password: parsed.password,
-            options: {
-              emailRedirectTo: origin ? `${origin}/dashboard` : undefined,
-              data: { full_name: parsed.name },
-            },
+            fullName: parsed.name,
           });
-          if (error) {
-            // Avoid leaking whether the email is already registered.
-            const msg = /already|registered|exists/i.test(error.message)
-              ? "If this email can be registered, check your inbox for a confirmation link."
-              : error.message;
-            return Response.json({ ok: false, error: msg }, { status: 400 });
+          if (!result.ok) {
+            return Response.json({ ok: false, error: result.error }, { status: 400 });
           }
           return Response.json({
             ok: true,

@@ -7,22 +7,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errMsg } from "@/lib/crm";
 import { PoweredByCodeteak, YaadroLogo } from "@/components/brand/yaadro-logo";
+import { formatAuthLinkExpiry } from "@/lib/auth-link-expiry";
+import { BRAND } from "@/lib/brand";
 import { PASSWORD_MAX, passwordError } from "@/lib/validation";
+
+const RESET_LINK_EXPIRY_HINT = formatAuthLinkExpiry().pageHint;
 
 export const Route = createFileRoute("/reset-password")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Set a new password — Yaadro" },
-      { name: "description", content: "Choose a new password for your Yaadro account." },
-      { property: "og:title", content: "Set a new password — Yaadro" },
-      { property: "og:description", content: "Choose a new password for your Yaadro account." },
+      { title: brandTitle("Set a new password") },
+      { name: "description", content: `Choose a new password for your ${BRAND.productName} UAE sales account.` },
+      { property: "og:title", content: brandTitle("Set a new password") },
+      { property: "og:description", content: `Choose a new password for your ${BRAND.productName} account.` },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ResetPassword,
 });
+
+function brandTitle(page: string) {
+  return `${page} — ${BRAND.productName}`;
+}
 
 function recoveryMarkersPresent() {
   if (typeof window === "undefined") return false;
@@ -34,6 +42,10 @@ function recoveryMarkersPresent() {
     hash.has("access_token") ||
     query.has("code")
   );
+}
+
+function isExpiredAuthError(message: string): boolean {
+  return /expir|invalid|otp_expired|flow_state|token/i.test(message);
 }
 
 function ResetPassword() {
@@ -60,21 +72,22 @@ function ResetPassword() {
     void (async () => {
       const fromLink = recoveryMarkersPresent();
 
-      // PKCE: ?code=… — exchange before judging the session.
       const code = new URLSearchParams(window.location.search).get("code");
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (cancelled) return;
         if (error) {
-          setSessionError(errMsg(error));
+          setSessionError(
+            isExpiredAuthError(error.message)
+              ? `This reset link is invalid or has expired. ${RESET_LINK_EXPIRY_HINT} Request a new link and open it in the same browser.`
+              : errMsg(error),
+          );
           return;
         }
-        // Clean the URL so refreshing does not reuse the code.
         window.history.replaceState({}, "", "/reset-password");
         recoveryEvent = true;
       }
 
-      // Give the client time to parse #access_token=…&type=recovery
       await new Promise((r) => setTimeout(r, fromLink || recoveryEvent ? 600 : 200));
       if (cancelled) return;
 
@@ -87,7 +100,7 @@ function ResetPassword() {
         }
         if (!data.session) {
           setSessionError(
-            "This reset link is invalid or has expired (or the token was stripped by your email app). Request a new link and open it in the same browser.",
+            `This reset link is invalid or has expired (or the token was stripped by your email app). ${RESET_LINK_EXPIRY_HINT} Request a new link and open it in the same browser.`,
           );
           return;
         }
@@ -95,10 +108,9 @@ function ResetPassword() {
         return;
       }
 
-      // Bare /reset-password# with no tokens — common when Site URL / Redirect URLs are wrong.
       if (window.location.hash === "#" || window.location.hash === "") {
         setSessionError(
-          "No reset token was found in this link. In Supabase → Authentication → URL Configuration, set Site URL to your real app URL and add that same origin + /reset-password under Redirect URLs. Then request a new reset email.",
+          "No reset token was found in this link. Request a new password reset from the sign-in page and open the email link in this browser.",
         );
         return;
       }
@@ -115,7 +127,9 @@ function ResetPassword() {
         );
         return;
       }
-      setSessionError("This reset link is invalid or has expired. Request a new one from the sign-in page.");
+      setSessionError(
+        `This reset link is invalid or has expired. ${RESET_LINK_EXPIRY_HINT} Request a new one from the sign-in page.`,
+      );
     })();
 
     return () => {
@@ -135,7 +149,11 @@ function ResetPassword() {
     const { error } = await supabase.auth.updateUser({ password: pw });
     setBusy(false);
     if (error) {
-      toast.error(errMsg(error));
+      toast.error(
+        isExpiredAuthError(error.message)
+          ? `Could not update password — the reset session may have expired. ${RESET_LINK_EXPIRY_HINT}`
+          : errMsg(error),
+      );
       return;
     }
     toast.success("Password updated");
@@ -156,11 +174,17 @@ function ResetPassword() {
     return (
       <div className="grid min-h-screen place-items-center bg-background px-4">
         <div className="w-full max-w-sm space-y-4 rounded-xl border bg-card p-8 shadow-card">
+          <div className="flex items-center rounded-lg bg-sidebar px-4 py-3">
+            <YaadroLogo variant="full" size="lg" onDark />
+          </div>
           <h1 className="text-2xl font-semibold">Reset link unavailable</h1>
           <p className="text-sm text-muted-foreground">{sessionError}</p>
           <Button className="w-full" onClick={() => navigate({ to: "/auth", search: { mode: "forgot" } })}>
             Request a new link
           </Button>
+          <div className="border-t pt-4">
+            <PoweredByCodeteak size="md" />
+          </div>
         </div>
       </div>
     );
@@ -181,6 +205,9 @@ function ResetPassword() {
           <YaadroLogo variant="full" size="lg" onDark />
         </div>
         <h1 className="text-2xl font-semibold">Set a new password</h1>
+        <p className="text-sm text-muted-foreground">
+          Update the password for your {BRAND.productName} UAE sales account. {RESET_LINK_EXPIRY_HINT}
+        </p>
         <div className="space-y-1.5">
           <Label htmlFor="pw">New password</Label>
           <Input
