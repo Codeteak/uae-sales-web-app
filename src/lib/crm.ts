@@ -110,7 +110,10 @@ export function useMe() {
         isAdmin: !!roles?.some((r) => r.role === "admin") && profile?.account_status === "active",
       };
     },
-    staleTime: 60_000,
+    // Keep account_status fresh so deactivate/reject signs users out quickly.
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 }
 

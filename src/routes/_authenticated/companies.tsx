@@ -105,12 +105,12 @@ function CompanyDialog({ company, onClose }: { company: Company | null; onClose:
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Name"><Input value={f.company_name} onChange={(e) => setF({ ...f, company_name: e.target.value })} /></Field>
           <Field label="Industry"><Input value={f.industry} onChange={(e) => setF({ ...f, industry: e.target.value })} /></Field>
-          <Field label="Phone"><Input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
-          <Field label="Email"><Input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
-          <Field label="Website"><Input value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} /></Field>
-          <Field label="Address"><Input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
+          <Field label="Phone"><Input value={f.phone} maxLength={40} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
+          <Field label="Email"><Input type="email" value={f.email} maxLength={255} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
+          <Field label="Website"><Input value={f.website} maxLength={500} onChange={(e) => setF({ ...f, website: e.target.value })} /></Field>
+          <Field label="Address"><Input value={f.address} maxLength={1000} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
         </div>
-        <Field label="Notes"><Input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+        <Field label="Notes"><Input value={f.notes} maxLength={5000} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
         <DialogFooter><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save}>Save</Button></DialogFooter>
       </DialogContent>
     </Dialog>

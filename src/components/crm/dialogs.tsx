@@ -461,7 +461,7 @@ export function ContactDialog({
           <Field label="Phone"><Input value={f.phone_number} onBlur={checkDupes} onChange={(e) => setF({ ...f, phone_number: e.target.value })} /></Field>
           <Field label="Email"><Input type="email" value={f.email} onBlur={checkDupes} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
         </div>
-        <Field label="Notes"><Textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+        <Field label="Notes"><Textarea value={f.notes} maxLength={5000} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
         {dupes.length > 0 && (
           <div className="rounded-md bg-warning-soft p-3 text-sm text-warning-foreground">
             Possible duplicate: {dupes.join(", ")}
