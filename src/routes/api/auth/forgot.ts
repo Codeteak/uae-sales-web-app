@@ -6,8 +6,7 @@ const bodySchema = z.object({
   email: z.string().trim().email().max(255),
 });
 
-/** Generic success so callers cannot probe which emails exist. */
-const OK_MESSAGE = "If that email has an account, a reset link is on its way.";
+const OK_MESSAGE = "Check your email for a Yaadro password reset link.";
 
 export const Route = createFileRoute("/api/auth/forgot")({
   server: {
@@ -18,7 +17,6 @@ export const Route = createFileRoute("/api/auth/forgot")({
         if (originDenied) return originDenied;
 
         const ip = clientIp(request);
-        // v2 keys clear prior 429s from testing; still throttled.
         const limited =
           enforceRateLimit(`auth:forgot:v2:ip:${ip}`, 10, 15 * 60 * 1000) ??
           enforceRateLimit(`auth:forgot:v2:day:${ip}`, 40, 24 * 60 * 60 * 1000);
@@ -43,7 +41,11 @@ export const Route = createFileRoute("/api/auth/forgot")({
             );
           }
           const { sendPasswordResetEmail } = await import("@/lib/auth-mail.server");
-          await sendPasswordResetEmail(email);
+          const result = await sendPasswordResetEmail(email);
+          if (!result.ok) {
+            const status = result.code === "not_found" ? 404 : 400;
+            return Response.json({ ok: false, error: result.error }, { status });
+          }
           return Response.json({ ok: true, message: OK_MESSAGE });
         } catch (e) {
           console.error("[auth/forgot]", e);

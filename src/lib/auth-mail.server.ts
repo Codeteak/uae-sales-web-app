@@ -105,45 +105,76 @@ function brandedAuthEmail(opts: {
   return { subject: `${opts.heading} — ${BRAND.productName}`, text, html };
 }
 
-/** Password reset — always returns quietly if the user does not exist. */
-export async function sendPasswordResetEmail(email: string): Promise<void> {
+export type PasswordResetResult =
+  | { ok: true }
+  | { ok: false; code: "not_found" | "link_failed"; error: string };
+
+/** Password reset — requires an existing Yaadro profile for that email. */
+export async function sendPasswordResetEmail(email: string): Promise<PasswordResetResult> {
   requireSmtp();
+  const normalized = email.trim().toLowerCase();
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("id, email")
+    .ilike("email", normalized)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error("[auth-mail] profile lookup", profileError);
+    throw profileError;
+  }
+  if (!profile) {
+    return {
+      ok: false,
+      code: "not_found",
+      error: `No ${BRAND.productName} account found for that email. Check the address or ask an administrator.`,
+    };
+  }
+
   const origin = appOriginFromEnv();
   const expiryMinutes = authLinkExpiryMinutes();
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({
     type: "recovery",
-    email,
+    email: profile.email || normalized,
     options: {
       redirectTo: origin ? `${origin}/reset-password` : undefined,
     },
   });
   if (error) {
     console.warn("[auth-mail] recovery link", error.message);
-    return;
+    if (/not\s*found|unable to find|no user/i.test(error.message)) {
+      return {
+        ok: false,
+        code: "not_found",
+        error: `No ${BRAND.productName} account found for that email. Check the address or ask an administrator.`,
+      };
+    }
+    return { ok: false, code: "link_failed", error: "Could not create a reset link. Try again." };
   }
   const link = data.properties?.action_link;
   if (!link) {
-    console.warn("[auth-mail] recovery link missing action_link");
-    return;
+    return { ok: false, code: "link_failed", error: "Could not create a reset link. Try again." };
   }
 
   const exp = formatAuthLinkExpiry(expiryMinutes);
   const mail = brandedAuthEmail({
     preview: `Use this link to choose a new password for your ${BRAND.productName} UAE sales account.`,
     heading: "Reset your password",
-    bodyHtml: `We received a request to reset the password for your <strong>${escapeHtml(BRAND.productName)}</strong> sales account (<span style="color:#64748b">${escapeHtml(email)}</span>).`,
+    bodyHtml: `We received a request to reset the password for your <strong>${escapeHtml(BRAND.productName)}</strong> sales account (<span style="color:#64748b">${escapeHtml(normalized)}</span>).`,
     ctaLabel: "Reset password",
     ctaUrl: link,
     expiryMinutes,
   });
 
   await sendAppEmail({
-    to: email,
+    to: normalized,
     subject: mail.subject,
     text: mail.text,
     html: mail.html,
   });
   console.info(`[auth-mail] recovery email queued (expires in ${exp.short})`);
+  return { ok: true };
 }
 
 /** Signup confirmation — creates the Auth user and emails the confirm link. */

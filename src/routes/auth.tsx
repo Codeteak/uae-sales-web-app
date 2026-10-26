@@ -98,7 +98,7 @@ function AuthPage() {
         const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; message?: string };
         if (res.status === 429) throw new Error(body.error ?? "Too many attempts. Try again later.");
         if (!res.ok || !body.ok) throw new Error(body.error ?? "Could not send reset link");
-        setDone(body.message ?? "If that email has an account, a reset link is on its way.");
+        setDone(body.message ?? "Check your email for a Yaadro password reset link.");
       } else {
         const v = loginSchema.parse(f);
         const res = await fetch("/api/auth/login", {
