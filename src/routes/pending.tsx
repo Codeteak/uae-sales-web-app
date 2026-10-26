@@ -30,15 +30,15 @@ function Pending() {
   const navigate = useNavigate();
   const { data, refetch, isFetching, error } = useQuery({
     queryKey: ["my-status"],
-    refetchInterval: 15_000,
+    refetchInterval: 30_000,
     queryFn: async () => {
-      const { data: u, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!u.user) return null;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user?.id;
+      if (!userId) return null;
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("account_status")
-        .eq("id", u.user.id)
+        .eq("id", userId)
         .maybeSingle();
       if (profileError) throw profileError;
       if (!profile) throw new Error("Profile not found. Contact an administrator.");

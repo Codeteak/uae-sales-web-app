@@ -125,10 +125,16 @@ function RootComponent() {
   const router = useRouter();
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      router.invalidate();
-      if (event === "SIGNED_OUT") queryClient.clear();
-      else queryClient.invalidateQueries();
+      // Avoid TOKEN_REFRESHED / INITIAL_SESSION storms (those caused Auth 429s).
+      if (event === "SIGNED_OUT") {
+        queryClient.clear();
+        void router.invalidate();
+        return;
+      }
+      if (event === "SIGNED_IN" || event === "USER_UPDATED" || event === "PASSWORD_RECOVERY") {
+        void queryClient.invalidateQueries({ queryKey: ["me"] });
+        void router.invalidate();
+      }
     });
     return () => data.subscription.unsubscribe();
   }, [router, queryClient]);

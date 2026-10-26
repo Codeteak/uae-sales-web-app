@@ -26,7 +26,11 @@ import { Route as AuthenticatedCompaniesIdRouteImport } from './routes/_authenti
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated/leads/index'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads/$id'
 import { Route as AuthenticatedLeadsNewRouteImport } from './routes/_authenticated/leads/new'
+import { Route as ApiAuthForgotRouteImport } from './routes/api/auth/forgot'
+import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiCronRemindersRouteImport } from './routes/api/cron/reminders'
+import { Route as ApiMailTestRouteImport } from './routes/api/mail/test'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -114,9 +118,29 @@ const AuthenticatedLeadsNewRoute = AuthenticatedLeadsNewRouteImport.update({
   path: '/leads/new',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiAuthForgotRoute = ApiAuthForgotRouteImport.update({
+  id: '/api/auth/forgot',
+  path: '/api/auth/forgot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
+  id: '/api/auth/register',
+  path: '/api/auth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronRemindersRoute = ApiCronRemindersRouteImport.update({
   id: '/api/cron/reminders',
   path: '/api/cron/reminders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMailTestRoute = ApiMailTestRouteImport.update({
+  id: '/api/mail/test',
+  path: '/api/mail/test',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -136,7 +160,11 @@ export interface FileRoutesByFullPath {
   '/companies/$id': typeof AuthenticatedCompaniesIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/leads/new': typeof AuthenticatedLeadsNewRoute
+  '/api/auth/forgot': typeof ApiAuthForgotRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/cron/reminders': typeof ApiCronRemindersRoute
+  '/api/mail/test': typeof ApiMailTestRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -155,7 +183,11 @@ export interface FileRoutesByTo {
   '/companies/$id': typeof AuthenticatedCompaniesIdRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/leads/new': typeof AuthenticatedLeadsNewRoute
+  '/api/auth/forgot': typeof ApiAuthForgotRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/cron/reminders': typeof ApiCronRemindersRoute
+  '/api/mail/test': typeof ApiMailTestRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
 }
 export interface FileRoutesById {
@@ -176,7 +208,11 @@ export interface FileRoutesById {
   '/_authenticated/companies/$id': typeof AuthenticatedCompaniesIdRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/_authenticated/leads/new': typeof AuthenticatedLeadsNewRoute
+  '/api/auth/forgot': typeof ApiAuthForgotRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/cron/reminders': typeof ApiCronRemindersRoute
+  '/api/mail/test': typeof ApiMailTestRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
 }
 export interface FileRouteTypes {
@@ -197,7 +233,11 @@ export interface FileRouteTypes {
     | '/companies/$id'
     | '/leads/$id'
     | '/leads/new'
+    | '/api/auth/forgot'
+    | '/api/auth/login'
+    | '/api/auth/register'
     | '/api/cron/reminders'
+    | '/api/mail/test'
     | '/leads/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -216,7 +256,11 @@ export interface FileRouteTypes {
     | '/companies/$id'
     | '/leads/$id'
     | '/leads/new'
+    | '/api/auth/forgot'
+    | '/api/auth/login'
+    | '/api/auth/register'
     | '/api/cron/reminders'
+    | '/api/mail/test'
     | '/leads'
   id:
     | '__root__'
@@ -236,7 +280,11 @@ export interface FileRouteTypes {
     | '/_authenticated/companies/$id'
     | '/_authenticated/leads/$id'
     | '/_authenticated/leads/new'
+    | '/api/auth/forgot'
+    | '/api/auth/login'
+    | '/api/auth/register'
     | '/api/cron/reminders'
+    | '/api/mail/test'
     | '/_authenticated/leads/'
   fileRoutesById: FileRoutesById
 }
@@ -246,7 +294,11 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   PendingRoute: typeof PendingRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiAuthForgotRoute: typeof ApiAuthForgotRoute
+  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
+  ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiCronRemindersRoute: typeof ApiCronRemindersRoute
+  ApiMailTestRoute: typeof ApiMailTestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -370,11 +422,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLeadsNewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/auth/forgot': {
+      id: '/api/auth/forgot'
+      path: '/api/auth/forgot'
+      fullPath: '/api/auth/forgot'
+      preLoaderRoute: typeof ApiAuthForgotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/login': {
+      id: '/api/auth/login'
+      path: '/api/auth/login'
+      fullPath: '/api/auth/login'
+      preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/register': {
+      id: '/api/auth/register'
+      path: '/api/auth/register'
+      fullPath: '/api/auth/register'
+      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/reminders': {
       id: '/api/cron/reminders'
       path: '/api/cron/reminders'
       fullPath: '/api/cron/reminders'
       preLoaderRoute: typeof ApiCronRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mail/test': {
+      id: '/api/mail/test'
+      path: '/api/mail/test'
+      fullPath: '/api/mail/test'
+      preLoaderRoute: typeof ApiMailTestRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -431,7 +511,11 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   PendingRoute: PendingRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiAuthForgotRoute: ApiAuthForgotRoute,
+  ApiAuthLoginRoute: ApiAuthLoginRoute,
+  ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiCronRemindersRoute: ApiCronRemindersRoute,
+  ApiMailTestRoute: ApiMailTestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -443,6 +443,7 @@ export type Database = {
           actor_user_id: string | null
           created_at: string
           deduplication_key: string | null
+          email_sent_at: string | null
           id: string
           lead_id: string | null
           message: string | null
@@ -456,6 +457,7 @@ export type Database = {
           actor_user_id?: string | null
           created_at?: string
           deduplication_key?: string | null
+          email_sent_at?: string | null
           id?: string
           lead_id?: string | null
           message?: string | null
@@ -469,6 +471,7 @@ export type Database = {
           actor_user_id?: string | null
           created_at?: string
           deduplication_key?: string | null
+          email_sent_at?: string | null
           id?: string
           lead_id?: string | null
           message?: string | null

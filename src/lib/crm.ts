@@ -98,22 +98,28 @@ export function useMe() {
   return useQuery({
     queryKey: ["me"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
+      // Prefer local session to avoid hammering Auth (getUser hits the network and can 429).
+      const { data: sessionData } = await supabase.auth.getSession();
+      let user = sessionData.session?.user ?? null;
+      if (!user) {
+        const { data } = await supabase.auth.getUser();
+        user = data.user;
+      }
+      if (!user) return null;
       const [{ data: profile }, { data: roles }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", u.user.id),
+        supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", user.id),
       ]);
       return {
-        user: u.user,
+        user,
         profile,
         isAdmin: !!roles?.some((r) => r.role === "admin") && profile?.account_status === "active",
       };
     },
-    // Keep account_status fresh so deactivate/reject signs users out quickly.
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    staleTime: 60_000,
     refetchOnWindowFocus: true,
+    // Soft status check via profiles only — no Auth polling.
+    refetchInterval: 120_000,
   });
 }
 

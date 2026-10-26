@@ -10,7 +10,6 @@ import { errMsg } from "@/lib/crm";
 import { PoweredByCodeteak, YaadroLogo } from "@/components/brand/yaadro-logo";
 import { BRAND, brandTitle } from "@/lib/brand";
 import { PASSWORD_MAX, PASSWORD_MIN } from "@/lib/validation";
-import { authRedirectUrl } from "@/lib/app-url";
 
 const search = z.object({ mode: z.enum(["login", "register", "forgot"]).optional() });
 
@@ -77,32 +76,48 @@ function AuthPage() {
           return;
         }
         const v = registerSchema.parse(f);
-        const { error } = await supabase.auth.signUp({
-          email: v.email,
-          password: v.password,
-          options: {
-            emailRedirectTo: authRedirectUrl("/dashboard"),
-            data: { full_name: v.name },
-          },
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: v.name, email: v.email, password: v.password }),
         });
-        if (error) throw error;
+        const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; message?: string };
+        if (res.status === 429) throw new Error(body.error ?? "Too many attempts. Try again later.");
+        if (!res.ok || !body.ok) throw new Error(body.error ?? "Registration failed");
         setDone(
-          "Check your email to confirm your address, then sign in. An administrator may need to approve your account before you can use Yaadro.",
+          body.message ??
+            "Check your email to confirm your address, then sign in. An administrator may need to approve your account before you can use Yaadro.",
         );
       } else if (mode === "forgot") {
         const email = z.string().trim().email().max(255).parse(f.email);
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: authRedirectUrl("/reset-password"),
+        const res = await fetch("/api/auth/forgot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
         });
-        if (error) throw error;
-        setDone("If that email has an account, a reset link is on its way.");
+        const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; message?: string };
+        if (res.status === 429) throw new Error(body.error ?? "Too many attempts. Try again later.");
+        if (!res.ok || !body.ok) throw new Error(body.error ?? "Could not send reset link");
+        setDone(body.message ?? "If that email has an account, a reset link is on its way.");
       } else {
         const v = loginSchema.parse(f);
-        const { error } = await supabase.auth.signInWithPassword({
-          email: v.email,
-          password: v.password,
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: v.email, password: v.password }),
         });
-        if (error) throw error;
+        const body = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          session?: { access_token: string; refresh_token: string };
+        };
+        if (res.status === 429) throw new Error(body.error ?? "Too many attempts. Try again later.");
+        if (!res.ok || !body.ok || !body.session) throw new Error(body.error ?? "Invalid email or password");
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: body.session.access_token,
+          refresh_token: body.session.refresh_token,
+        });
+        if (sessionError) throw sessionError;
         const { error: touchError } = await supabase.rpc("touch_last_login");
         if (touchError) console.warn("touch_last_login failed", touchError);
         const { data: userData } = await supabase.auth.getUser();

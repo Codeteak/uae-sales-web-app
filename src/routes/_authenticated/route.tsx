@@ -27,12 +27,14 @@ import { useCrmRealtime } from "@/hooks/use-crm-realtime";
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
-    const { data, error: authError } = await supabase.auth.getUser();
-    if (authError || !data.user) throw redirect({ to: "/auth" });
+    // Use local session here — getUser() on every navigation can trip Auth rate limits (429).
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+    if (!user) throw redirect({ to: "/auth" });
     const { data: p, error: profileError } = await supabase
       .from("profiles")
       .select("account_status")
-      .eq("id", data.user.id)
+      .eq("id", user.id)
       .maybeSingle();
     if (profileError || !p || p.account_status !== "active") throw redirect({ to: "/pending" });
   },
