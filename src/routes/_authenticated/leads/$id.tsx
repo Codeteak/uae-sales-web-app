@@ -13,6 +13,7 @@ import { ActivityDialog, ContactDialog, Field, LostDialog, NativeSelect, TaskDia
 import { TaskList } from "@/components/crm/task-list";
 import { leadActivitiesOptions, leadOptions, leadTasksOptions, money } from "@/lib/crm-data";
 import { CONTACT_ROLES, LEAD_SOURCES, PRIORITIES, errMsg, fmtDateTime, isoToLocalInput, localInputToIso, useActiveUsers, useMe, useStages, type LeadRow, type Priority, type TablesUpdate } from "@/lib/crm";
+import { ALLOWED_CURRENCIES, isValidCurrency } from "@/lib/validation";
 
 export const Route = createFileRoute("/_authenticated/leads/$id")({
   head: () => pageMeta("Lead details", "Opportunity details, contacts, tasks and activity history."),
@@ -221,7 +222,12 @@ function EditForm({ lead, stages, users, onStage, onSave }: { lead: LeadRow; sta
     currency: lead.currency ?? "AED",
   });
   return (
-    <form className="grid gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); onSave({
+    <form className="grid gap-4 sm:grid-cols-2" onSubmit={(e) => {
+      e.preventDefault();
+      if (!f.lead_title.trim()) { toast.error("Opportunity title required"); return; }
+      if (!isValidCurrency(f.currency)) { toast.error("Unsupported currency"); return; }
+      if (f.estimated_value && Number(f.estimated_value) < 0) { toast.error("Value cannot be negative"); return; }
+      onSave({
       lead_title: f.lead_title.trim(),
       lead_source: f.lead_source || null,
       priority: f.priority,
@@ -253,7 +259,13 @@ function EditForm({ lead, stages, users, onStage, onSave }: { lead: LeadRow; sta
       </Field>
       <Field label={`Follow-up (${tz})`}><Input type="datetime-local" value={f.follow_up} onChange={(e) => setF({ ...f, follow_up: e.target.value })} /></Field>
       <Field label="Estimated value"><Input type="number" min="0" value={f.estimated_value} onChange={(e) => setF({ ...f, estimated_value: e.target.value })} /></Field>
-      <Field label="Currency"><Input value={f.currency} maxLength={3} onChange={(e) => setF({ ...f, currency: e.target.value.toUpperCase() })} /></Field>
+      <Field label="Currency">
+        <NativeSelect value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value })}>
+          {Array.from(new Set([f.currency, ...ALLOWED_CURRENCIES])).map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </NativeSelect>
+      </Field>
       <Field label="Expected close date"><Input type="date" value={f.expected_close_date} onChange={(e) => setF({ ...f, expected_close_date: e.target.value })} /></Field>
       <div className="sm:col-span-2"><Field label="Next action"><Textarea value={f.next_action} onChange={(e) => setF({ ...f, next_action: e.target.value })} /></Field></div>
       <div className="flex gap-2 sm:col-span-2"><Button type="submit"><CheckCircle2 /> Save changes</Button></div>

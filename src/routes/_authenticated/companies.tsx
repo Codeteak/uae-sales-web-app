@@ -11,6 +11,7 @@ import { PageHeader, pageMeta, Empty } from "@/components/crm/page-header";
 import { Field, NativeSelect } from "@/components/crm/dialogs";
 import { companiesOptions } from "@/lib/crm-data";
 import { downloadFile, errMsg, normText, parseCsv, toCsv, useMe, type Company } from "@/lib/crm";
+import { csvFileError, csvRowCountError, CSV_MAX_ROWS, isValidEmail, isValidPhone } from "@/lib/validation";
 
 export const Route = createFileRoute("/_authenticated/companies")({
   head: () => pageMeta("Companies", "Customer and prospect companies for Yaadro UAE sales."),
@@ -85,6 +86,8 @@ function CompanyDialog({ company, onClose }: { company: Company | null; onClose:
   const [f, setF] = useState({ company_name: company?.company_name ?? "", industry: company?.industry ?? "", phone: company?.phone ?? "", email: company?.email ?? "", website: company?.website ?? "", address: company?.address ?? "", notes: company?.notes ?? "" });
   async function save() {
     if (!f.company_name.trim()) { toast.error("Name is required"); return; }
+    if (!isValidEmail(f.email)) { toast.error("Invalid email"); return; }
+    if (!isValidPhone(f.phone)) { toast.error("Invalid phone number"); return; }
     const payload = { company_name: f.company_name.trim(), industry: f.industry || null, phone: f.phone || null, email: f.email || null, website: f.website || null, address: f.address || null, notes: f.notes || null };
     const { data, error } = company
       ? await supabase.from("companies").update(payload).eq("id", company.id).eq("updated_at", company.updated_at).select('id')
@@ -124,25 +127,52 @@ function ImportDialog({ open, onOpenChange, existing, fileRef }: { open: boolean
 
   function pick(file: File | undefined) {
     if (!file) return;
-    file.text().then((text) => {
+    const fileErr = csvFileError(file);
+    if (fileErr) {
+      toast.error(fileErr);
+      return;
+    }
+    void file.text().then((text) => {
       const grid = parseCsv(text);
+      const dataRows = grid.slice(1).filter((r) => r.some((c) => c.trim()));
+      const rowErr = csvRowCountError(dataRows.length);
+      if (rowErr) {
+        toast.error(rowErr);
+        return;
+      }
       const head = grid[0]?.map((h) => h.toLowerCase().trim()) ?? [];
-      const col = (r: string[], ...names: string[]) => { const i = names.map((n) => head.indexOf(n)).find((i) => i >= 0); return i == null ? "" : (r[i] ?? "").trim(); };
+      const col = (r: string[], ...names: string[]) => {
+        const i = names.map((n) => head.indexOf(n)).find((idx) => idx >= 0);
+        return i == null ? "" : (r[i] ?? "").trim();
+      };
+      const seen = new Set<string>();
       setResults(null);
-      setRows(grid.slice(1).map((r) => {
-        const name = col(r, "name", "company", "company_name");
-        return {
-          name,
-          industry: col(r, "industry"),
-          phone: col(r, "phone"),
-          email: col(r, "email"),
-          website: col(r, "website"),
-          address: col(r, "address"),
-          notes: col(r, "notes"),
-          dupe: !!name && existing.some((c) => normText(c.company_name) === normText(name)),
-          error: name ? "" : "Missing name",
-        };
-      }));
+      setRows(
+        dataRows.map((r) => {
+          const name = col(r, "name", "company", "company_name");
+          const phone = col(r, "phone");
+          const email = col(r, "email");
+          const key = normText(name);
+          const dupe = !!name && (seen.has(key) || existing.some((c) => normText(c.company_name) === key));
+          if (name) seen.add(key);
+          let error = "";
+          if (!name) error = "Missing name";
+          else if (dupe) error = "Duplicate company";
+          else if (!isValidEmail(email)) error = "Invalid email";
+          else if (!isValidPhone(phone)) error = "Invalid phone";
+          return {
+            name,
+            industry: col(r, "industry"),
+            phone,
+            email,
+            website: col(r, "website"),
+            address: col(r, "address"),
+            notes: col(r, "notes"),
+            dupe,
+            error,
+          };
+        }),
+      );
     });
   }
 
@@ -151,7 +181,10 @@ function ImportDialog({ open, onOpenChange, existing, fileRef }: { open: boolean
     setBusy(true);
     const out: string[] = [];
     for (const [i, r] of rows.entries()) {
-      if (r.error) { out.push(`Row ${i + 2}: skipped — ${r.error}`); continue; }
+      if (r.error) {
+        out.push(`Row ${i + 2}: skipped — ${r.error}`);
+        continue;
+      }
       const { error } = await supabase.from("companies").insert({
         company_name: r.name,
         industry: r.industry || null,
@@ -161,18 +194,18 @@ function ImportDialog({ open, onOpenChange, existing, fileRef }: { open: boolean
         address: r.address || null,
         notes: r.notes || null,
       });
-      out.push(error ? `Row ${i + 2}: failed — ${errMsg(error)}` : `Row ${i + 2}: imported ${r.name}${r.dupe ? " (possible duplicate)" : ""}`);
+      out.push(error ? `Row ${i + 2}: failed — ${errMsg(error)}` : `Row ${i + 2}: imported ${r.name}`);
     }
     setBusy(false);
     setResults(out);
-    qc.invalidateQueries({ queryKey: ["companies"] });
+    void qc.invalidateQueries({ queryKey: ["companies"] });
   }
 
   return (
     <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setRows(null); setResults(null); } }}>
       <DialogContent className="max-w-2xl">
         <DialogHeader><DialogTitle>Import companies from CSV</DialogTitle></DialogHeader>
-        <p className="text-xs text-muted-foreground">Expected columns: name, industry, phone, email, website, address, notes. Duplicates are flagged, not merged.</p>
+        <p className="text-xs text-muted-foreground">Expected columns: name, industry, phone, email, website, address, notes. Max {CSV_MAX_ROWS} rows. Duplicate names are skipped.</p>
         <input ref={fileRef} type="file" accept=".csv,text/csv" aria-label="Choose CSV file" onChange={(e) => pick(e.target.files?.[0])} className="text-sm" />
         {rows && !results && (
           <div className="max-h-64 overflow-auto rounded border text-xs">

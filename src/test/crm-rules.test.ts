@@ -53,21 +53,40 @@ describe("CRM rules", () => {
     expect(contactImportError({ name: "Ali", email: "bad", companyId: "1" })).toBe("Invalid email");
     expect(contactImportError({ name: "Ali", email: "", companyId: "" })).toBe("Company not found");
     expect(contactImportError({ name: "", email: "", companyId: "1" })).toBe("Missing name");
-    expect(contactImportError({ name: "Ali", email: "ali@example.com", companyId: "1" })).toBe("");
+    expect(contactImportError({ name: "Ali", email: "ali@example.com", phone: "971501234567", companyId: "1" })).toBe(
+      "",
+    );
+    expect(contactImportError({ name: "Ali", email: "", phone: "12", companyId: "1" })).toBe("Invalid phone");
   });
 
   it("validates lead import rows", () => {
-    expect(leadImportError({ title: "", company: "Acme", email: "", priority: "medium", value: "" }, "c1", "s1")).toBe(
-      "Missing title",
-    );
     expect(
-      leadImportError({ title: "Deal", company: "Acme", email: "x", priority: "medium", value: "" }, "c1", "s1"),
+      leadImportError(
+        { title: "", company: "Acme", email: "", phone: "", priority: "medium", value: "", currency: "AED" },
+        "c1",
+        "s1",
+      ),
+    ).toBe("Missing title");
+    expect(
+      leadImportError(
+        { title: "Deal", company: "Acme", email: "x", phone: "", priority: "medium", value: "", currency: "AED" },
+        "c1",
+        "s1",
+      ),
     ).toBe("Invalid email");
     expect(
-      leadImportError({ title: "Deal", company: "Acme", email: "", priority: "hot", value: "" }, "c1", "s1"),
+      leadImportError(
+        { title: "Deal", company: "Acme", email: "", phone: "", priority: "hot", value: "", currency: "AED" },
+        "c1",
+        "s1",
+      ),
     ).toBe("Invalid priority");
     expect(
-      leadImportError({ title: "Deal", company: "Acme", email: "", priority: "high", value: "10" }, "c1", "s1"),
+      leadImportError(
+        { title: "Deal", company: "Acme", email: "", phone: "", priority: "high", value: "10", currency: "AED" },
+        "c1",
+        "s1",
+      ),
     ).toBe("");
   });
 });

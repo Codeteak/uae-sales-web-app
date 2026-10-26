@@ -1,5 +1,6 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ function Pending() {
   const navigate = useNavigate();
   const { data, refetch, isFetching, error } = useQuery({
     queryKey: ["my-status"],
+    refetchInterval: 15_000,
     queryFn: async () => {
       const { data: u, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
@@ -43,6 +45,22 @@ function Pending() {
       return profile.account_status;
     },
   });
+
+  useEffect(() => {
+    if (data === "active") navigate({ to: "/dashboard", replace: true });
+  }, [data, navigate]);
+
+  useEffect(() => {
+    if (data !== "deactivated" && data !== "rejected") return;
+    const t = window.setTimeout(() => {
+      void (async () => {
+        await supabase.auth.signOut();
+        navigate({ to: "/auth", replace: true });
+        toast.message("You have been signed out.");
+      })();
+    }, 8_000);
+    return () => window.clearTimeout(t);
+  }, [data, navigate]);
 
   if (error) {
     return (
@@ -71,12 +89,12 @@ function Pending() {
 
   const msg =
     data === "rejected"
-      ? "Your registration was not approved. Contact your administrator if you think this is a mistake."
+      ? "Your registration was not approved. You will be signed out shortly. Contact your administrator if you think this is a mistake."
       : data === "deactivated"
-        ? "Your account has been deactivated. Contact your administrator."
+        ? "Your account has been deactivated. You will be signed out shortly. Contact your administrator."
         : data === "active"
-          ? "Your account is active."
-          : "Thanks for registering. An admin has been notified and will review your account shortly.";
+          ? "Your account is active. Opening Yaadro…"
+          : "Thanks for registering. An admin has been notified and will review your account shortly. This page refreshes automatically.";
 
   return (
     <div className="grid min-h-screen place-items-center bg-background px-4">
@@ -95,10 +113,11 @@ function Pending() {
               onClick={async () => {
                 const result = await refetch();
                 if (result.error) toast.error(errMsg(result.error));
+                else if (result.data === "active") toast.success("Approved — opening Yaadro");
               }}
               disabled={isFetching}
             >
-              Check again
+              {isFetching ? "Checking…" : "Check again"}
             </Button>
           )}
           <Button

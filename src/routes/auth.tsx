@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { errMsg } from "@/lib/crm";
 import { PoweredByCodeteak, YaadroLogo } from "@/components/brand/yaadro-logo";
 import { BRAND, brandTitle } from "@/lib/brand";
+import { PASSWORD_MAX, PASSWORD_MIN } from "@/lib/validation";
+import { authRedirectUrl } from "@/lib/app-url";
 
 const search = z.object({ mode: z.enum(["login", "register", "forgot"]).optional() });
 
@@ -30,7 +32,15 @@ export const Route = createFileRoute("/auth")({
 const registerSchema = z.object({
   name: z.string().trim().min(2, "Enter your full name").max(100),
   email: z.string().trim().email("Enter a valid email").max(255),
-  password: z.string().min(8, "Password must be at least 8 characters").max(72),
+  password: z
+    .string()
+    .min(PASSWORD_MIN, `Password must be at least ${PASSWORD_MIN} characters`)
+    .max(PASSWORD_MAX, `Password must be at most ${PASSWORD_MAX} characters`),
+});
+
+const loginSchema = z.object({
+  email: z.string().trim().email("Enter a valid email").max(255),
+  password: z.string().min(1, "Enter your password").max(PASSWORD_MAX),
 });
 
 function AuthPage() {
@@ -39,6 +49,19 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [f, setF] = useState({ name: "", email: "", password: "" });
+  const [allowRegistrations, setAllowRegistrations] = useState(true);
+
+  useEffect(() => {
+    void supabase.rpc("registration_policy").then(({ data, error }) => {
+      if (error) {
+        console.warn("registration_policy", error);
+        return;
+      }
+      const allow = (data as { allow_registrations?: boolean } | null)?.allow_registrations;
+      if (typeof allow === "boolean") setAllowRegistrations(allow);
+    });
+  }, []);
+
   const setMode = (m: "login" | "register" | "forgot") => {
     setDone(null);
     navigate({ to: "/auth", search: { mode: m } });
@@ -49,30 +72,46 @@ function AuthPage() {
     setBusy(true);
     try {
       if (mode === "register") {
+        if (!allowRegistrations) {
+          toast.error("New registrations are closed. Ask an administrator for access.");
+          return;
+        }
         const v = registerSchema.parse(f);
         const { error } = await supabase.auth.signUp({
           email: v.email,
           password: v.password,
-          options: { emailRedirectTo: window.location.origin + "/dashboard", data: { full_name: v.name } },
+          options: {
+            emailRedirectTo: authRedirectUrl("/dashboard"),
+            data: { full_name: v.name },
+          },
         });
         if (error) throw error;
-        setDone("Check your email to confirm your address, then sign in. The first registered account becomes an admin automatically; later accounts may need admin approval.");
+        setDone(
+          "Check your email to confirm your address, then sign in. An administrator may need to approve your account before you can use Yaadro.",
+        );
       } else if (mode === "forgot") {
-        const email = z.string().email().parse(f.email.trim());
+        const email = z.string().trim().email().max(255).parse(f.email);
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin + "/reset-password",
+          redirectTo: authRedirectUrl("/reset-password"),
         });
         if (error) throw error;
         setDone("If that email has an account, a reset link is on its way.");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email: f.email.trim(), password: f.password });
+        const v = loginSchema.parse(f);
+        const { error } = await supabase.auth.signInWithPassword({
+          email: v.email,
+          password: v.password,
+        });
         if (error) throw error;
         const { error: touchError } = await supabase.rpc("touch_last_login");
         if (touchError) console.warn("touch_last_login failed", touchError);
+        const { data: userData } = await supabase.auth.getUser();
+        const userId = userData.user?.id;
+        if (!userId) throw new Error("Signed in, but no user was returned. Try again.");
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("account_status")
-          .eq("id", (await supabase.auth.getUser()).data.user!.id)
+          .eq("id", userId)
           .maybeSingle();
         if (profileError) throw profileError;
         if (profile?.account_status === "active") navigate({ to: "/dashboard" });
@@ -85,7 +124,10 @@ function AuthPage() {
     }
   }
 
-  const title = mode === "register" ? "Request access" : mode === "forgot" ? "Reset password" : "Sign in";
+  const effectiveMode = mode === "register" && !allowRegistrations ? "login" : mode;
+  const title =
+    effectiveMode === "register" ? "Request access" : effectiveMode === "forgot" ? "Reset password" : "Sign in";
+
   return (
     <div className="grid min-h-screen place-items-center bg-background px-4 py-10">
       <div className="w-full max-w-sm rounded-xl border bg-card p-8 shadow-card">
@@ -96,51 +138,92 @@ function AuthPage() {
           <p className="text-xs text-muted-foreground">{BRAND.tagline}</p>
         </div>
         <h1 className="text-2xl font-semibold">{title}</h1>
-        {mode === "register" && (
+        {effectiveMode === "register" && (
           <p className="mt-1 text-sm text-muted-foreground">
-            Join the Yaadro UAE sales workspace. The first registered account becomes an admin automatically. Later accounts may need admin approval.
+            Join the Yaadro UAE sales workspace. New accounts usually need admin approval before access is granted.
           </p>
         )}
         {done ? (
           <p className="mt-6 rounded-md bg-accent p-4 text-sm text-accent-foreground">{done}</p>
         ) : (
           <form onSubmit={submit} className="mt-6 space-y-4">
-            {mode === "register" && (
+            {effectiveMode === "register" && (
               <div className="space-y-1.5">
                 <Label htmlFor="name">Full name</Label>
-                <Input id="name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required />
+                <Input
+                  id="name"
+                  value={f.name}
+                  onChange={(e) => setF({ ...f, name: e.target.value })}
+                  required
+                  maxLength={100}
+                />
               </div>
             )}
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" autoComplete="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} required />
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={f.email}
+                onChange={(e) => setF({ ...f, email: e.target.value })}
+                required
+                maxLength={255}
+              />
             </div>
-            {mode !== "forgot" && (
+            {effectiveMode !== "forgot" && (
               <div className="space-y-1.5">
                 <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
                   type="password"
-                  autoComplete={mode === "register" ? "new-password" : "current-password"}
+                  autoComplete={effectiveMode === "register" ? "new-password" : "current-password"}
                   value={f.password}
                   onChange={(e) => setF({ ...f, password: e.target.value })}
                   required
+                  maxLength={PASSWORD_MAX}
                 />
               </div>
             )}
             <Button className="w-full" disabled={busy}>
-              {busy ? "Please wait…" : mode === "register" ? "Register" : mode === "forgot" ? "Send reset link" : "Sign in"}
+              {busy
+                ? "Please wait…"
+                : effectiveMode === "register"
+                  ? "Register"
+                  : effectiveMode === "forgot"
+                    ? "Send reset link"
+                    : "Sign in"}
             </Button>
           </form>
         )}
         <div className="mt-6 flex flex-col gap-1 text-sm">
-          {mode !== "login" && (
-            <button type="button" className="text-left text-primary hover:underline" onClick={() => setMode("login")}>Back to sign in</button>
+          {effectiveMode !== "login" && (
+            <button type="button" className="text-left text-primary hover:underline" onClick={() => setMode("login")}>
+              Back to sign in
+            </button>
           )}
-          {mode === "login" && (
+          {effectiveMode === "login" && (
             <>
-              <button type="button" className="text-left text-primary hover:underline" onClick={() => setMode("register")}>No account? Request access</button>
-              <button type="button" className="text-left text-muted-foreground hover:underline" onClick={() => setMode("forgot")}>Forgot password?</button>
+              {allowRegistrations ? (
+                <button
+                  type="button"
+                  className="text-left text-primary hover:underline"
+                  onClick={() => setMode("register")}
+                >
+                  No account? Request access
+                </button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Registrations are closed. Ask your Yaadro administrator for access.
+                </p>
+              )}
+              <button
+                type="button"
+                className="text-left text-muted-foreground hover:underline"
+                onClick={() => setMode("forgot")}
+              >
+                Forgot password?
+              </button>
             </>
           )}
         </div>

@@ -36,6 +36,13 @@
       "when": 1792998000000,
       "tag": "0004_fix_crm_gaps",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793100000000,
+      "tag": "0005_harden_validation_auth",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errMsg } from "@/lib/crm";
 import { PoweredByCodeteak, YaadroLogo } from "@/components/brand/yaadro-logo";
+import { PASSWORD_MAX, passwordError } from "@/lib/validation";
 
 export const Route = createFileRoute("/reset-password")({
   ssr: false,
@@ -23,6 +24,18 @@ export const Route = createFileRoute("/reset-password")({
   component: ResetPassword,
 });
 
+function recoveryMarkersPresent() {
+  if (typeof window === "undefined") return false;
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const query = new URLSearchParams(window.location.search);
+  return (
+    hash.get("type") === "recovery" ||
+    query.get("type") === "recovery" ||
+    hash.has("access_token") ||
+    query.has("code")
+  );
+}
+
 function ResetPassword() {
   const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,28 +45,90 @@ function ResetPassword() {
 
   useEffect(() => {
     let cancelled = false;
+    let recoveryEvent = false;
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        recoveryEvent = true;
+        if (!cancelled) {
+          setSessionError(null);
+          setReady(true);
+        }
+      }
+    });
+
     void (async () => {
+      const fromLink = recoveryMarkersPresent();
+
+      // PKCE: ?code=… — exchange before judging the session.
+      const code = new URLSearchParams(window.location.search).get("code");
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (cancelled) return;
+        if (error) {
+          setSessionError(errMsg(error));
+          return;
+        }
+        // Clean the URL so refreshing does not reuse the code.
+        window.history.replaceState({}, "", "/reset-password");
+        recoveryEvent = true;
+      }
+
+      // Give the client time to parse #access_token=…&type=recovery
+      await new Promise((r) => setTimeout(r, fromLink || recoveryEvent ? 600 : 200));
+      if (cancelled) return;
+
+      if (recoveryEvent || fromLink || recoveryMarkersPresent()) {
+        const { data, error } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (error) {
+          setSessionError(errMsg(error));
+          return;
+        }
+        if (!data.session) {
+          setSessionError(
+            "This reset link is invalid or has expired (or the token was stripped by your email app). Request a new link and open it in the same browser.",
+          );
+          return;
+        }
+        setReady(true);
+        return;
+      }
+
+      // Bare /reset-password# with no tokens — common when Site URL / Redirect URLs are wrong.
+      if (window.location.hash === "#" || window.location.hash === "") {
+        setSessionError(
+          "No reset token was found in this link. In Supabase → Authentication → URL Configuration, set Site URL to your real app URL and add that same origin + /reset-password under Redirect URLs. Then request a new reset email.",
+        );
+        return;
+      }
+
       const { data, error } = await supabase.auth.getSession();
       if (cancelled) return;
       if (error) {
         setSessionError(errMsg(error));
         return;
       }
-      if (!data.session) {
-        setSessionError("This reset link is invalid or has expired. Request a new one from the sign-in page.");
+      if (data.session) {
+        setSessionError(
+          "Open the link from your password-reset email to choose a new password. If you are already signed in, use Forgot password on the sign-in page.",
+        );
         return;
       }
-      setReady(true);
+      setSessionError("This reset link is invalid or has expired. Request a new one from the sign-in page.");
     })();
+
     return () => {
       cancelled = true;
+      sub.subscription.unsubscribe();
     };
   }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (pw.length < 8) {
-      toast.error("Password must be at least 8 characters");
+    const err = passwordError(pw);
+    if (err) {
+      toast.error(err);
       return;
     }
     setBusy(true);
@@ -116,6 +191,7 @@ function ResetPassword() {
             onChange={(e) => setPw(e.target.value)}
             required
             minLength={8}
+            maxLength={PASSWORD_MAX}
           />
         </div>
         <Button className="w-full" disabled={busy}>

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { companiesOptions, contactsOptions } from "@/lib/crm-data";
 import { CONTACT_ROLES, downloadFile, toCsv, parseCsv, normText, normPhone, errMsg, useMe, type Contact, type ContactRole } from "@/lib/crm";
 import { contactImportError } from "@/lib/contact-import";
+import { csvFileError, csvRowCountError, CSV_MAX_ROWS } from "@/lib/validation";
 import { supabase } from "@/integrations/supabase/client";
 import { Download, Upload, Plus } from "lucide-react";
 
@@ -59,7 +60,18 @@ function Page() {
 
   async function pick(file: File | undefined) {
     if (!file) return;
+    const fileErr = csvFileError(file);
+    if (fileErr) {
+      toast.error(fileErr);
+      return;
+    }
     const grid = parseCsv(await file.text());
+    const dataRows = grid.slice(1).filter((r) => r.some((c) => c.trim()));
+    const rowErr = csvRowCountError(dataRows.length);
+    if (rowErr) {
+      toast.error(rowErr);
+      return;
+    }
     const headers = grid[0]?.map((h) => h.trim().toLowerCase()) || [];
     const get = (r: string[], ...names: string[]) => {
       const i = names.map((n) => headers.indexOf(n)).find((idx) => idx >= 0);
@@ -68,7 +80,7 @@ function Page() {
     const seen = new Set<string>();
     setResults([]);
     setPreview(
-      grid.slice(1).map((r) => {
+      dataRows.map((r) => {
         const name = get(r, "name", "full_name");
         const email = get(r, "email");
         const phone = get(r, "phone", "phone_number");
@@ -87,7 +99,7 @@ function Page() {
           );
         seen.add(key);
         const roleOk = CONTACT_ROLES.some((cr) => cr.value === role);
-        const baseError = contactImportError({ name, email, companyId });
+        const baseError = contactImportError({ name, email, phone, companyId, duplicate: dupe });
         return {
           name,
           email,
@@ -255,7 +267,7 @@ function Page() {
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Import contacts</DialogTitle>
+            <DialogTitle>Import contacts (max {CSV_MAX_ROWS} rows; duplicates skipped)</DialogTitle>
           </DialogHeader>
           <Button
             variant="outline"

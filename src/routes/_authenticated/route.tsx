@@ -22,6 +22,7 @@ import { COMMON_TIMEZONES, errMsg, useMe } from "@/lib/crm";
 import { toast } from "sonner";
 import { NativeSelect } from "@/components/crm/dialogs";
 import { PoweredByCodeteak, YaadroLogo } from "@/components/brand/yaadro-logo";
+import { useCrmRealtime } from "@/hooks/use-crm-realtime";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -125,6 +126,23 @@ function Layout() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  useCrmRealtime(!!me?.user.id && me.profile?.account_status === "active");
+
+  useEffect(() => {
+    if (!me?.profile) return;
+    if (me.profile.account_status === "active") return;
+    void (async () => {
+      if (me.profile.account_status === "deactivated" || me.profile.account_status === "rejected") {
+        await qc.cancelQueries();
+        qc.clear();
+        await supabase.auth.signOut();
+        navigate({ to: "/auth", replace: true });
+        toast.error("Your account is no longer active. You have been signed out.");
+        return;
+      }
+      navigate({ to: "/pending", replace: true });
+    })();
+  }, [me?.profile, me?.profile?.account_status, navigate, qc]);
 
   async function signOut() {
     await qc.cancelQueries();

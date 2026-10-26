@@ -23,6 +23,7 @@ import {
   useMe,
   useStages,
 } from "@/lib/crm";
+import { csvFileError, csvRowCountError, CSV_MAX_ROWS } from "@/lib/validation";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/leads/")({
@@ -83,6 +84,7 @@ function Page() {
         onOpenChange={setImportOpen}
         companies={companies.filter((c) => !c.archived_at)}
         stages={stages.filter((s) => s.is_active && s.category === "open")}
+        existingLeads={leads.filter((l) => !l.archived_at).map((l) => ({ title: l.lead_title, companyId: l.company_id }))}
         timezone={me?.profile?.timezone || "Asia/Dubai"}
       />
     </div>
@@ -96,12 +98,14 @@ function LeadImportDialog({
   onOpenChange,
   companies,
   stages,
+  existingLeads,
   timezone,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   companies: { id: string; company_name: string }[];
   stages: { id: string; stage_name: string }[];
+  existingLeads: { title: string; companyId: string }[];
   timezone: string;
 }) {
   const qc = useQueryClient();
@@ -112,16 +116,28 @@ function LeadImportDialog({
 
   function pick(file: File | undefined) {
     if (!file) return;
+    const fileErr = csvFileError(file);
+    if (fileErr) {
+      toast.error(fileErr);
+      return;
+    }
     void file.text().then((text) => {
       const grid = parseCsv(text);
+      const dataRows = grid.slice(1).filter((r) => r.some((c) => c.trim()));
+      const rowErr = csvRowCountError(dataRows.length);
+      if (rowErr) {
+        toast.error(rowErr);
+        return;
+      }
       const head = grid[0]?.map((h) => h.toLowerCase().trim()) ?? [];
       const col = (r: string[], ...names: string[]) => {
         const i = names.map((n) => head.indexOf(n)).find((idx) => idx >= 0);
         return i == null ? "" : (r[i] ?? "").trim();
       };
+      const seen = new Set<string>();
       setResults(null);
       setRows(
-        grid.slice(1).map((r) => {
+        dataRows.map((r) => {
           const title = col(r, "title", "lead_title", "opportunity");
           const company = col(r, "company", "company_name", "name");
           const stageName = col(r, "stage", "stage_name");
@@ -129,6 +145,13 @@ function LeadImportDialog({
           const stageId =
             stages.find((s) => normText(s.stage_name) === normText(stageName))?.id ||
             (!stageName ? defaultStage?.id || "" : "");
+          const key = `${normText(title)}::${companyId}`;
+          const dupe =
+            (!!title && !!companyId && seen.has(key)) ||
+            existingLeads.some(
+              (l) => l.companyId === companyId && normText(l.title) === normText(title),
+            );
+          if (title && companyId) seen.add(key);
           const row: LeadImportRow = {
             title,
             company,
@@ -147,8 +170,8 @@ function LeadImportDialog({
             ...row,
             companyId,
             stageId,
-            dupe: !!title && !!companyId,
-            error: leadImportError(row, companyId, stageId),
+            dupe,
+            error: leadImportError(row, companyId, stageId, { duplicate: dupe }),
           };
         }),
       );
@@ -212,7 +235,7 @@ function LeadImportDialog({
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
           Columns: title, company, contact, phone, email, stage, priority, source, value, currency, next_action, follow_up.
-          Company and stage must already exist. Imports never merge existing opportunities.
+          Company and stage must already exist. Max {CSV_MAX_ROWS} rows. Duplicates (same title + company) are skipped.
         </p>
         <Button
           variant="outline"

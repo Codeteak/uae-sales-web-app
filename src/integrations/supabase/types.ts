@@ -87,6 +87,7 @@ export type Database = {
       }
       app_settings: {
         Row: {
+          allow_registrations: boolean
           auto_approve_registrations: boolean
           default_currency: string
           default_timezone: string
@@ -95,6 +96,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          allow_registrations?: boolean
           auto_approve_registrations?: boolean
           default_currency?: string
           default_timezone?: string
@@ -103,6 +105,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          allow_registrations?: boolean
           auto_approve_registrations?: boolean
           default_currency?: string
           default_timezone?: string
@@ -704,6 +707,7 @@ export type Database = {
       }
       is_active_user: { Args: { _user_id: string }; Returns: boolean }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      registration_policy: { Args: never; Returns: Json }
       log_crm_activity: {
         Args: { mentioned_users?: string[]; payload: Json }
         Returns: string

@@ -20,6 +20,7 @@ import {
   type Priority,
   type Task,
 } from "@/lib/crm";
+import { isValidEmail, isValidPhone, MENTION_MAX } from "@/lib/validation";
 
 export function NativeSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
@@ -227,17 +228,22 @@ export function ActivityDialog({
   async function save() {
     if (!f.summary.trim()) { toast.error("Summary is required"); return; }
     if (!me) return;
+    const mentioned = mentions.filter((id) => id !== me.user.id).slice(0, MENTION_MAX);
+    if (mentions.filter((id) => id !== me.user.id).length > MENTION_MAX) {
+      toast.error(`You can mention at most ${MENTION_MAX} colleagues`);
+      return;
+    }
     const { error } = await supabase.rpc("log_crm_activity", {
       payload: {
         lead_id: leadId,
         activity_type: f.type,
         summary: f.summary.trim().slice(0, 300),
-        details: f.details.trim() || null,
+        details: f.details.trim().slice(0, 5000) || null,
         outcome: f.outcome.trim() || null,
         contact_id: f.contact_id || null,
         occurred_at: localInputToIso(f.when, tz) ?? new Date().toISOString(),
       },
-      mentioned_users: mentions.filter((id) => id !== me.user.id),
+      mentioned_users: mentioned,
     });
     if (error) { toast.error(errMsg(error)); return; }
     toast.success("Activity logged");
@@ -269,7 +275,7 @@ export function ActivityDialog({
             <Input value={f.summary} maxLength={300} onChange={(e) => setF({ ...f, summary: e.target.value })} />
           </Field>
           <Field label="Details">
-            <Textarea value={f.details} maxLength={4000} onChange={(e) => setF({ ...f, details: e.target.value })} />
+            <Textarea value={f.details} maxLength={5000} onChange={(e) => setF({ ...f, details: e.target.value })} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Outcome">
@@ -288,9 +294,14 @@ export function ActivityDialog({
                       type="checkbox"
                       checked={mentions.includes(u.id)}
                       onChange={(e) =>
-                        setMentions((prev) =>
-                          e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id),
-                        )
+                        setMentions((prev) => {
+                          if (!e.target.checked) return prev.filter((id) => id !== u.id);
+                          if (prev.length >= MENTION_MAX) {
+                            toast.error(`You can mention at most ${MENTION_MAX} colleagues`);
+                            return prev;
+                          }
+                          return [...prev, u.id];
+                        })
                       }
                     />
                     {u.full_name}
@@ -393,7 +404,8 @@ export function ContactDialog({
   async function save() {
     if (!effectiveCompanyId) { toast.error("Select a company first"); return; }
     if (!f.full_name.trim()) { toast.error("Name is required"); return; }
-    if (f.email && !/^\S+@\S+\.\S+$/.test(f.email)) { toast.error("Invalid email"); return; }
+    if (!isValidEmail(f.email)) { toast.error("Invalid email"); return; }
+    if (!isValidPhone(f.phone_number)) { toast.error("Invalid phone number"); return; }
     const payload = {
       full_name: f.full_name.trim(),
       job_title: f.job_title.trim() || null,
