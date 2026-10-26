@@ -18,15 +18,21 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useMe } from "@/lib/crm";
+import { COMMON_TIMEZONES, errMsg, useMe } from "@/lib/crm";
+import { toast } from "sonner";
+import { NativeSelect } from "@/components/crm/dialogs";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/auth" });
-    const { data: p } = await supabase.from("profiles").select("account_status").eq("id", data.user.id).maybeSingle();
-    if (p?.account_status !== "active") throw redirect({ to: "/pending" });
+    const { data, error: authError } = await supabase.auth.getUser();
+    if (authError || !data.user) throw redirect({ to: "/auth" });
+    const { data: p, error: profileError } = await supabase
+      .from("profiles")
+      .select("account_status")
+      .eq("id", data.user.id)
+      .maybeSingle();
+    if (profileError || !p || p.account_status !== "active") throw redirect({ to: "/pending" });
   },
   component: Layout,
 });
@@ -56,7 +62,11 @@ function useUnread(userId?: string) {
           qc.invalidateQueries({ queryKey: ["notifications"] });
         },
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("[notifications realtime]", status, err);
+        }
+      });
     return () => {
       supabase.removeChannel(ch);
     };
@@ -66,11 +76,12 @@ function useUnread(userId?: string) {
     enabled: !!userId,
     refetchInterval: 60_000,
     queryFn: async () => {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from("notifications")
         .select("id", { count: "exact", head: true })
         .eq("recipient_user_id", userId!)
         .is("read_at", null);
+      if (error) throw error;
       return count ?? 0;
     },
   });
@@ -136,6 +147,37 @@ function Layout() {
       <div className="mt-auto border-t border-sidebar-border pt-4">
         <div className="px-2 text-sm font-medium text-sidebar-accent-foreground">{me?.profile?.full_name}</div>
         <div className="px-2 text-xs">{me?.isAdmin ? "Admin" : "Team member"}</div>
+        {me?.profile && (
+          <label className="mt-3 block px-2 text-xs">
+            <span className="mb-1 block text-sidebar-foreground/80">Timezone</span>
+            <NativeSelect
+              aria-label="Timezone"
+              className="h-8 border-sidebar-border bg-sidebar text-sidebar-foreground"
+              value={me.profile.timezone || "Asia/Dubai"}
+              onChange={async (e) => {
+                const timezone = e.target.value;
+                const { data, error } = await supabase
+                  .from("profiles")
+                  .update({ timezone })
+                  .eq("id", me.user.id)
+                  .eq("updated_at", me.profile!.updated_at)
+                  .select("id");
+                if (error) toast.error(errMsg(error));
+                else if (!data?.length) toast.error("Profile changed. Refresh and try again.");
+                else {
+                  toast.success("Timezone updated");
+                  void qc.invalidateQueries({ queryKey: ["me"] });
+                }
+              }}
+            >
+              {Array.from(new Set([me.profile.timezone, ...COMMON_TIMEZONES])).filter(Boolean).map((tz) => (
+                <option key={tz} value={tz!}>
+                  {tz}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+        )}
         <button onClick={signOut} className="mt-3 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-sidebar-accent">
           <LogOut className="size-4" /> Sign out
         </button>

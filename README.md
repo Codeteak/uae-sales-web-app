@@ -17,11 +17,9 @@
 
 ## Current limitations
 
-- Reminder scheduling is installed, but signed-out delivery and repeat-event behavior still need a live scheduler verification.
-- Team approval and work transfer use existing protected operations; multi-user permission testing still needs a second account.
-- Lead CSV import is not included; company and contact CSV import/export and lead export are available.
-- Adding or switching contacts within an existing opportunity is not fully transactional yet; avoid simultaneous changes to its primary contact.
-- Date-entry controls currently use Dubai time. Per-user timezone preferences are not yet wired throughout the app.
+- Apply migration `0004_fix_crm_gaps` (or Lovable sync) so reminder cron, primary-contact RPC, and lost-reason concurrency columns exist in your database.
+- Set `SUPABASE_SERVICE_ROLE_KEY` and `CRON_SECRET` on the host for `/api/cron/reminders`. Database `pg_cron` also schedules `process_due_reminders` every 5 minutes after migration 0004.
+- Team approval and work transfer should still be smoke-tested with a second account in each environment.
 - Reports aggregate opportunity counts and open value by currency; no exchange-rate conversion is performed.
 - Verification records are clearly labeled QA and archived after testing; their audit history remains intentionally visible.
 

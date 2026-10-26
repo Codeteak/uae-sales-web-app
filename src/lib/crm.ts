@@ -1,7 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  APP_TZ as DEFAULT_TZ,
+  formatInZone,
+  isoToZonedLocalInput,
+  zonedLocalInputToIso,
+} from "@/lib/timezone";
 export type { TablesUpdate } from "@/integrations/supabase/types";
+export { COMMON_TIMEZONES } from "@/lib/timezone";
 
 export type Tables<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Row"];
@@ -15,7 +22,7 @@ export type Activity = Tables<"activities">;
 export type Priority = Database["public"]["Enums"]["lead_priority"];
 export type ContactRole = Database["public"]["Enums"]["contact_role"];
 
-export const APP_TZ = "Asia/Dubai";
+export const APP_TZ = DEFAULT_TZ;
 export const PRIORITIES: Priority[] = ["low", "medium", "high", "urgent"];
 export const CONTACT_ROLES: { value: ContactRole; label: string }[] = [
   { value: "decision_maker", label: "Decision-maker" },
@@ -36,46 +43,50 @@ export const LEAD_SOURCES = [
 ];
 
 export function fmtDateTime(v?: string | null, tz = APP_TZ) {
-  if (!v) return "—";
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: tz,
+  return formatInZone(v, tz, {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(v));
+  });
 }
 export function fmtDate(v?: string | null, tz = APP_TZ) {
-  if (!v) return "—";
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: tz,
+  return formatInZone(v, tz, {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  }).format(new Date(v));
+  });
 }
 
-/** Dubai has a fixed UTC+4 offset (no DST). Convert a datetime-local value to ISO UTC. */
-export function localInputToIso(v: string): string | null {
-  if (!v) return null;
-  return new Date(v + ":00+04:00").toISOString();
+/** Convert a datetime-local value in the given IANA zone to ISO UTC. */
+export function localInputToIso(v: string, timeZone = APP_TZ): string | null {
+  return zonedLocalInputToIso(v, timeZone);
 }
-export function isoToLocalInput(v?: string | null): string {
-  if (!v) return "";
-  const d = new Date(new Date(v).getTime() + 4 * 3600_000);
-  return d.toISOString().slice(0, 16);
+export function isoToLocalInput(v?: string | null, timeZone = APP_TZ): string {
+  return isoToZonedLocalInput(v, timeZone);
 }
 
-/** Start/end of "today" in Dubai, as UTC ISO strings. */
-export function dubaiDayBounds(offsetDays = 0) {
-  const now = new Date(Date.now() + 4 * 3600_000);
-  const y = now.getUTCFullYear(),
-    m = now.getUTCMonth(),
-    d = now.getUTCDate() + offsetDays;
-  const start = new Date(Date.UTC(y, m, d) - 4 * 3600_000);
+/** Start/end of "today" in an IANA zone, as UTC ISO strings. */
+export function dayBoundsInZone(timeZone = APP_TZ, offsetDays = 0, now = Date.now()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(now));
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const base = new Date(Date.UTC(get("year"), get("month") - 1, get("day") + offsetDays));
+  const startLocal = `${base.getUTCFullYear()}-${String(base.getUTCMonth() + 1).padStart(2, "0")}-${String(base.getUTCDate()).padStart(2, "0")}T00:00`;
+  const startIso = localInputToIso(startLocal, timeZone);
+  const start = startIso ? new Date(startIso) : new Date(now);
   const end = new Date(start.getTime() + 24 * 3600_000);
   return { start: start.toISOString(), end: end.toISOString() };
+}
+
+/** @deprecated Prefer dayBoundsInZone — kept for existing call sites. */
+export function dubaiDayBounds(offsetDays = 0) {
+  return dayBoundsInZone(APP_TZ, offsetDays);
 }
 
 export function errMsg(e: unknown): string {
@@ -150,7 +161,7 @@ export function useLostReasons() {
 }
 
 export const LEAD_LIST_SELECT =
-  "*, company:companies(id, company_name), stage:pipeline_stages(id, stage_name, category, position), owner:profiles!leads_assigned_user_id_fkey(id, full_name), lead_contacts(is_primary, contact:contacts(id, full_name, phone_number, email))";
+  "*, company:companies(id, company_name), stage:pipeline_stages(id, stage_name, category, position), owner:profiles!leads_assigned_user_id_fkey(id, full_name), lead_contacts(is_primary, contact:contacts(id, full_name, phone_number, email, contact_role))";
 
 export type LeadRow = Lead & {
   company: { id: string; company_name: string } | null;
@@ -158,7 +169,13 @@ export type LeadRow = Lead & {
   owner: { id: string; full_name: string } | null;
   lead_contacts: {
     is_primary: boolean;
-    contact: { id: string; full_name: string; phone_number: string | null; email: string | null } | null;
+    contact: {
+      id: string;
+      full_name: string;
+      phone_number: string | null;
+      email: string | null;
+      contact_role: ContactRole;
+    } | null;
   }[];
 };
 
@@ -167,12 +184,15 @@ export function primaryContact(l: LeadRow) {
   return pc?.contact ?? null;
 }
 
-export function followUpState(l: Pick<Lead, "next_follow_up_at" | "outcome">) {
+export function followUpState(
+  l: Pick<Lead, "next_follow_up_at" | "outcome">,
+  timeZone = APP_TZ,
+) {
   if (l.outcome !== "open") return "closed" as const;
   if (!l.next_follow_up_at) return "missing" as const;
   const t = new Date(l.next_follow_up_at).getTime();
   if (t < Date.now()) return "overdue" as const;
-  const { end } = dubaiDayBounds();
+  const { end } = dayBoundsInZone(timeZone);
   if (t < new Date(end).getTime()) return "today" as const;
   return "scheduled" as const;
 }

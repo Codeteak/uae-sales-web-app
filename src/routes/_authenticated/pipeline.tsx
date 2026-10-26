@@ -6,6 +6,7 @@ import { PageHeader, pageMeta, Empty } from "@/components/crm/page-header";
 import { FollowUpBadge, PriorityBadge } from "@/components/crm/badges";
 import { NativeSelect } from "@/components/crm/dialogs";
 import { leadsOptions, money } from "@/lib/crm-data";
+import { openPipelineTotals } from "@/lib/crm-summary";
 import { errMsg, useStages, type LeadRow } from "@/lib/crm";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
@@ -33,16 +34,21 @@ function Page() {
 
   return (
     <div>
-      <PageHeader title="Pipeline" sub={`${open.length} open opportunities · ${money(open.reduce((s, l) => s + (l.estimated_value ?? 0), 0))} total value`} />
+      <PageHeader
+        title="Pipeline"
+        sub={`${open.length} open opportunities · ${openPipelineTotals(open, money)} total value`}
+      />
       {!openStages.length ? <Empty>No active stages configured.</Empty> : (
         <div className="flex gap-4 overflow-x-auto pb-4">
           {openStages.map((s) => {
             const cards = open.filter((l) => l.current_stage_id === s.id);
             return (
               <section key={s.id} className="w-72 shrink-0 rounded-xl border bg-muted/40 p-3">
-                <header className="mb-3 flex items-center justify-between px-1">
+                <header className="mb-3 flex items-center justify-between gap-2 px-1">
                   <h2 className="text-sm font-semibold">{s.stage_name}</h2>
-                  <span className="text-xs text-muted-foreground">{cards.length} · {money(cards.reduce((sum, l) => sum + (l.estimated_value ?? 0), 0))}</span>
+                  <span className="text-right text-xs text-muted-foreground">
+                    {cards.length} · {openPipelineTotals(cards, money)}
+                  </span>
                 </header>
                 <div className="space-y-2">
                   {cards.map((l) => (

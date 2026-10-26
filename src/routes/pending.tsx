@@ -1,7 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { errMsg } from "@/lib/crm";
 
 export const Route = createFileRoute("/pending")({
   ssr: false,
@@ -15,20 +17,57 @@ export const Route = createFileRoute("/pending")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) throw redirect({ to: "/auth" });
+  },
   component: Pending,
 });
 
 function Pending() {
   const navigate = useNavigate();
-  const { data, refetch, isFetching } = useQuery({
+  const { data, refetch, isFetching, error } = useQuery({
     queryKey: ["my-status"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: u, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
       if (!u.user) return null;
-      const { data } = await supabase.from("profiles").select("account_status").eq("id", u.user.id).maybeSingle();
-      return data?.account_status ?? "pending";
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("account_status")
+        .eq("id", u.user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile) throw new Error("Profile not found. Contact an administrator.");
+      return profile.account_status;
     },
   });
+
+  if (error) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background px-4">
+        <div className="w-full max-w-md rounded-xl border bg-card p-8 shadow-card">
+          <h1 className="text-2xl font-semibold">Could not load account status</h1>
+          <p className="mt-3 text-muted-foreground">{errMsg(error)}</p>
+          <div className="mt-6 flex gap-2">
+            <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
+              Try again
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                navigate({ to: "/auth", replace: true });
+              }}
+            >
+              Sign out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const msg =
     data === "rejected"
       ? "Your registration was not approved. Contact your administrator if you think this is a mistake."
@@ -37,6 +76,7 @@ function Pending() {
         : data === "active"
           ? "Your account is active."
           : "Thanks for registering. An admin has been notified and will review your account shortly.";
+
   return (
     <div className="grid min-h-screen place-items-center bg-background px-4">
       <div className="w-full max-w-md rounded-xl border bg-card p-8 shadow-card">
@@ -46,7 +86,16 @@ function Pending() {
           {data === "active" ? (
             <Button onClick={() => navigate({ to: "/dashboard" })}>Open CRM</Button>
           ) : (
-            <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>Check again</Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                const result = await refetch();
+                if (result.error) toast.error(errMsg(result.error));
+              }}
+              disabled={isFetching}
+            >
+              Check again
+            </Button>
           )}
           <Button
             variant="ghost"

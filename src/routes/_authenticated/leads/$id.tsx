@@ -45,7 +45,9 @@ function Page() {
   const [contactOpen, setContactOpen] = useState(false);
   const inv = () => qc.invalidateQueries();
 
-  const contacts = lead.lead_contacts.flatMap((lc) => lc.contact ? [{ ...lc.contact, contact_role: "other" as const, is_primary: lc.is_primary }] : []);
+  const contacts = lead.lead_contacts.flatMap((lc) =>
+    lc.contact ? [{ ...lc.contact, is_primary: lc.is_primary }] : [],
+  );
 
   async function update(patch: TablesUpdate<"leads">, success = "Saved") {
     const { data, error } = await supabase.from("leads").update(patch).eq("id", lead.id).eq("updated_at", lead.updated_at).select("id");
@@ -75,9 +77,15 @@ function Page() {
   }
 
   async function setPrimary(contactId: string) {
-    await supabase.from("lead_contacts").update({ is_primary: false }).eq("lead_id", lead.id);
-    const { error } = await supabase.from("lead_contacts").update({ is_primary: true }).eq("lead_id", lead.id).eq("contact_id", contactId);
-    if (error) toast.error(errMsg(error)); else { toast.success("Primary contact updated"); inv(); }
+    const { error } = await supabase.rpc("set_lead_primary_contact", {
+      p_lead_id: lead.id,
+      p_contact_id: contactId,
+    });
+    if (error) toast.error(errMsg(error));
+    else {
+      toast.success("Primary contact updated");
+      inv();
+    }
   }
 
   async function unlink(contactId: string) {
@@ -97,7 +105,20 @@ function Page() {
         <Button variant="outline" onClick={() => setRemindOpen(true)}><Bell /> Remind colleague</Button>
         {lead.outcome === "open" && !lead.archived_at && (
           <>
-            <Button variant="outline" className="text-success" onClick={() => { const w = stages.find((s) => s.category === "won"); if (w) setStage(w.id); }}><Trophy /> Won</Button>
+            <Button
+              variant="outline"
+              className="text-success"
+              onClick={() => {
+                const w = stages.find((s) => s.category === "won" && s.is_active);
+                if (!w) {
+                  toast.error("No active Won stage is configured. Ask an admin to add one.");
+                  return;
+                }
+                void setStage(w.id);
+              }}
+            >
+              <Trophy /> Won
+            </Button>
             <Button variant="outline" className="text-danger" onClick={() => setLost("lost")}><XCircle /> Lost</Button>
           </>
         )}
@@ -186,13 +207,15 @@ function Page() {
 }
 
 function EditForm({ lead, stages, users, onStage, onSave }: { lead: LeadRow; stages: ReturnType<typeof useStages>["data"] & object[]; users: { id: string; full_name: string }[]; onStage: (id: string) => void; onSave: (p: Record<string, unknown>) => void }) {
+  const { data: me } = useMe();
+  const tz = me?.profile?.timezone || "Asia/Dubai";
   const [f, setF] = useState({
     lead_title: lead.lead_title,
     lead_source: lead.lead_source ?? "",
     priority: lead.priority,
     assigned_user_id: lead.assigned_user_id,
     next_action: lead.next_action ?? "",
-    follow_up: isoToLocalInput(lead.next_follow_up_at),
+    follow_up: isoToLocalInput(lead.next_follow_up_at, tz),
     expected_close_date: lead.expected_close_date ?? "",
     estimated_value: lead.estimated_value?.toString() ?? "",
     currency: lead.currency ?? "AED",
@@ -204,7 +227,7 @@ function EditForm({ lead, stages, users, onStage, onSave }: { lead: LeadRow; sta
       priority: f.priority,
       assigned_user_id: f.assigned_user_id,
       next_action: f.next_action.trim() || null,
-      next_follow_up_at: localInputToIso(f.follow_up),
+      next_follow_up_at: localInputToIso(f.follow_up, tz),
       expected_close_date: f.expected_close_date || null,
       estimated_value: f.estimated_value ? Number(f.estimated_value) : null,
       currency: f.currency,
@@ -228,7 +251,7 @@ function EditForm({ lead, stages, users, onStage, onSave }: { lead: LeadRow; sta
           <option value="">Not specified</option>{LEAD_SOURCES.map((s) => <option key={s}>{s}</option>)}
         </NativeSelect>
       </Field>
-      <Field label="Follow-up (Dubai time)"><Input type="datetime-local" value={f.follow_up} onChange={(e) => setF({ ...f, follow_up: e.target.value })} /></Field>
+      <Field label={`Follow-up (${tz})`}><Input type="datetime-local" value={f.follow_up} onChange={(e) => setF({ ...f, follow_up: e.target.value })} /></Field>
       <Field label="Estimated value"><Input type="number" min="0" value={f.estimated_value} onChange={(e) => setF({ ...f, estimated_value: e.target.value })} /></Field>
       <Field label="Currency"><Input value={f.currency} maxLength={3} onChange={(e) => setF({ ...f, currency: e.target.value.toUpperCase() })} /></Field>
       <Field label="Expected close date"><Input type="date" value={f.expected_close_date} onChange={(e) => setF({ ...f, expected_close_date: e.target.value })} /></Field>

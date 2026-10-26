@@ -10,3 +10,22 @@ export function summarizeLeads(rows: Opportunity[], now = Date.now()) {
     missing: open.filter(r => !r.next_follow_up_at).length,
     overdue: open.filter(r => r.next_follow_up_at && new Date(r.next_follow_up_at).getTime() < now).length };
 }
+
+/** Format open-pipeline totals without mixing currencies into one number. */
+export function formatValuesByCurrency(
+  values: Record<string, number>,
+  fmt: (amount: number, currency: string) => string,
+): string {
+  const parts = Object.entries(values)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .filter(([, amount]) => amount !== 0)
+    .map(([currency, amount]) => fmt(amount, currency));
+  return parts.length ? parts.join(" · ") : fmt(0, "AED");
+}
+
+export function openPipelineTotals(
+  rows: Opportunity[],
+  fmt: (amount: number, currency: string) => string,
+): string {
+  return formatValuesByCurrency(summarizeLeads(rows).values, fmt);
+}

@@ -65,8 +65,16 @@ function AuthPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: f.email.trim(), password: f.password });
         if (error) throw error;
-        await supabase.rpc("touch_last_login");
-        navigate({ to: "/dashboard" });
+        const { error: touchError } = await supabase.rpc("touch_last_login");
+        if (touchError) console.warn("touch_last_login failed", touchError);
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("account_status")
+          .eq("id", (await supabase.auth.getUser()).data.user!.id)
+          .maybeSingle();
+        if (profileError) throw profileError;
+        if (profile?.account_status === "active") navigate({ to: "/dashboard" });
+        else navigate({ to: "/pending" });
       }
     } catch (err) {
       toast.error(err instanceof z.ZodError ? (err.errors[0]?.message ?? "Invalid input") : errMsg(err));

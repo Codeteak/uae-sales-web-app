@@ -114,7 +114,7 @@ function CompanyDialog({ company, onClose }: { company: Company | null; onClose:
   );
 }
 
-type ImportRow = { name: string; industry: string; phone: string; email: string; website: string; dupe: boolean; error: string };
+type ImportRow = { name: string; industry: string; phone: string; email: string; website: string; address: string; notes: string; dupe: boolean; error: string };
 
 function ImportDialog({ open, onOpenChange, existing, fileRef }: { open: boolean; onOpenChange: (o: boolean) => void; existing: Company[]; fileRef: React.RefObject<HTMLInputElement | null> }) {
   const qc = useQueryClient();
@@ -131,7 +131,17 @@ function ImportDialog({ open, onOpenChange, existing, fileRef }: { open: boolean
       setResults(null);
       setRows(grid.slice(1).map((r) => {
         const name = col(r, "name", "company", "company_name");
-        return { name, industry: col(r, "industry"), phone: col(r, "phone"), email: col(r, "email"), website: col(r, "website"), dupe: !!name && existing.some((c) => normText(c.company_name) === normText(name)), error: name ? "" : "Missing name" };
+        return {
+          name,
+          industry: col(r, "industry"),
+          phone: col(r, "phone"),
+          email: col(r, "email"),
+          website: col(r, "website"),
+          address: col(r, "address"),
+          notes: col(r, "notes"),
+          dupe: !!name && existing.some((c) => normText(c.company_name) === normText(name)),
+          error: name ? "" : "Missing name",
+        };
       }));
     });
   }
@@ -142,7 +152,15 @@ function ImportDialog({ open, onOpenChange, existing, fileRef }: { open: boolean
     const out: string[] = [];
     for (const [i, r] of rows.entries()) {
       if (r.error) { out.push(`Row ${i + 2}: skipped — ${r.error}`); continue; }
-      const { error } = await supabase.from("companies").insert({ company_name: r.name, industry: r.industry || null, phone: r.phone || null, email: r.email || null, website: r.website || null });
+      const { error } = await supabase.from("companies").insert({
+        company_name: r.name,
+        industry: r.industry || null,
+        phone: r.phone || null,
+        email: r.email || null,
+        website: r.website || null,
+        address: r.address || null,
+        notes: r.notes || null,
+      });
       out.push(error ? `Row ${i + 2}: failed — ${errMsg(error)}` : `Row ${i + 2}: imported ${r.name}${r.dupe ? " (possible duplicate)" : ""}`);
     }
     setBusy(false);
@@ -154,7 +172,7 @@ function ImportDialog({ open, onOpenChange, existing, fileRef }: { open: boolean
     <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setRows(null); setResults(null); } }}>
       <DialogContent className="max-w-2xl">
         <DialogHeader><DialogTitle>Import companies from CSV</DialogTitle></DialogHeader>
-        <p className="text-xs text-muted-foreground">Expected columns: name, industry, phone, email, website. Duplicates are flagged, not merged.</p>
+        <p className="text-xs text-muted-foreground">Expected columns: name, industry, phone, email, website, address, notes. Duplicates are flagged, not merged.</p>
         <input ref={fileRef} type="file" accept=".csv,text/csv" aria-label="Choose CSV file" onChange={(e) => pick(e.target.files?.[0])} className="text-sm" />
         {rows && !results && (
           <div className="max-h-64 overflow-auto rounded border text-xs">

@@ -417,18 +417,21 @@ export type Database = {
           is_active: boolean
           label: string
           position: number
+          updated_at: string
         }
         Insert: {
           id?: string
           is_active?: boolean
           label: string
           position?: number
+          updated_at?: string
         }
         Update: {
           id?: string
           is_active?: boolean
           label?: string
           position?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -719,6 +722,14 @@ export type Database = {
       process_due_reminders: { Args: never; Returns: number }
       reassign_user_work: {
         Args: { _from: string; _to: string }
+        Returns: undefined
+      }
+      save_lead_contact: {
+        Args: { p_lead_id: string; payload: Json }
+        Returns: string
+      }
+      set_lead_primary_contact: {
+        Args: { p_contact_id: string; p_lead_id: string }
         Returns: undefined
       }
       sync_lead_follow_up: { Args: { _lead: string }; Returns: undefined }

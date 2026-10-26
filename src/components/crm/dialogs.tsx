@@ -68,11 +68,12 @@ export function TaskDialog({
   const { data: me } = useMe();
   const { data: users = [] } = useActiveUsers();
   const inv = useInvalidate();
+  const tz = me?.profile?.timezone || "Asia/Dubai";
   const [f, setF] = useState(() => ({
     title: task?.title ?? (internal ? "Follow up on this opportunity" : ""),
     description: task?.description ?? "",
     assigned_to: task?.assigned_to ?? "",
-    due: isoToLocalInput(task?.due_at),
+    due: isoToLocalInput(task?.due_at, tz),
     priority: (task?.priority ?? "medium") as Priority,
     contact_id: task?.contact_id ?? "",
   }));
@@ -81,7 +82,7 @@ export function TaskDialog({
 
   async function save() {
     if (!f.title.trim()) { toast.error("Title is required"); return; }
-    const due = localInputToIso(f.due);
+    const due = localInputToIso(f.due, tz);
     if (!due) { toast.error("Due date and time are required"); return; }
     setBusy(true);
     const payload = {
@@ -124,7 +125,7 @@ export function TaskDialog({
                 {internal && !users.some((u) => u.id !== me?.user.id) && <option value="">No colleagues yet</option>}
               </NativeSelect>
             </Field>
-            <Field label="Due (Dubai time)">
+            <Field label={`Due (${tz})`}>
               <Input type="datetime-local" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} />
             </Field>
             <Field label="Priority">
@@ -185,10 +186,12 @@ export function CompleteTaskDialog({ task, onOpenChange }: { task: Task | null; 
   );
 }
 
-export async function cancelTask(id: string) {
-  const { data, error } = await supabase.from("tasks").update({ status: "cancelled" }).eq("id", id).eq("status", "pending").select('id');
+export async function cancelTask(id: string, updatedAt?: string) {
+  let query = supabase.from("tasks").update({ status: "cancelled" }).eq("id", id).eq("status", "pending");
+  if (updatedAt) query = query.eq("updated_at", updatedAt);
+  const { data, error } = await query.select("id");
   if (error) toast.error(errMsg(error));
-  else if(!data?.length) toast.error('Task is no longer pending. Refresh the list.');
+  else if (!data?.length) toast.error("Task is no longer pending. Refresh the list.");
   else toast.success("Task cancelled");
   return !error && !!data?.length;
 }
@@ -216,27 +219,34 @@ export function ActivityDialog({
   defaultType?: (typeof ACT_TYPES)[number]["v"];
 }) {
   const { data: me } = useMe();
+  const { data: users = [] } = useActiveUsers();
   const inv = useInvalidate();
+  const tz = me?.profile?.timezone || "Asia/Dubai";
   const [f, setF] = useState({ type: defaultType, summary: "", details: "", outcome: "", contact_id: "", when: "" });
+  const [mentions, setMentions] = useState<string[]>([]);
   async function save() {
     if (!f.summary.trim()) { toast.error("Summary is required"); return; }
     if (!me) return;
-    const { error } = await supabase.from("activities").insert({
-      lead_id: leadId,
-      activity_type: f.type,
-      summary: f.summary.trim().slice(0, 300),
-      details: f.details.trim() || null,
-      outcome: f.outcome.trim() || null,
-      contact_id: f.contact_id || null,
-      occurred_at: localInputToIso(f.when) ?? new Date().toISOString(),
-      performed_by: me.user.id,
+    const { error } = await supabase.rpc("log_crm_activity", {
+      payload: {
+        lead_id: leadId,
+        activity_type: f.type,
+        summary: f.summary.trim().slice(0, 300),
+        details: f.details.trim() || null,
+        outcome: f.outcome.trim() || null,
+        contact_id: f.contact_id || null,
+        occurred_at: localInputToIso(f.when, tz) ?? new Date().toISOString(),
+      },
+      mentioned_users: mentions.filter((id) => id !== me.user.id),
     });
     if (error) { toast.error(errMsg(error)); return; }
     toast.success("Activity logged");
     setF({ type: defaultType, summary: "", details: "", outcome: "", contact_id: "", when: "" });
+    setMentions([]);
     inv();
     onOpenChange(false);
   }
+  const colleagues = users.filter((u) => u.id !== me?.user.id);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -265,10 +275,30 @@ export function ActivityDialog({
             <Field label="Outcome">
               <Input value={f.outcome} maxLength={300} onChange={(e) => setF({ ...f, outcome: e.target.value })} />
             </Field>
-            <Field label="When (blank = now)">
+            <Field label={`When (${tz}; blank = now)`}>
               <Input type="datetime-local" value={f.when} onChange={(e) => setF({ ...f, when: e.target.value })} />
             </Field>
           </div>
+          {colleagues.length > 0 && (
+            <Field label="Mention colleagues (optional)">
+              <div className="max-h-28 space-y-1 overflow-auto rounded-md border p-2 text-sm">
+                {colleagues.map((u) => (
+                  <label key={u.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={mentions.includes(u.id)}
+                      onChange={(e) =>
+                        setMentions((prev) =>
+                          e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id),
+                        )
+                      }
+                    />
+                    {u.full_name}
+                  </label>
+                ))}
+              </div>
+            </Field>
+          )}
           {f.type === "note" && <p className="text-xs text-muted-foreground">Internal notes do not count as customer contact.</p>}
         </div>
         <DialogFooter>
@@ -329,14 +359,17 @@ export function ContactDialog({
   companyId,
   leadId,
   contact,
+  companies,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   companyId: string;
   leadId?: string;
   contact?: { id: string; updated_at?: string; full_name: string; job_title: string | null; department: string | null; phone_number: string | null; email: string | null; contact_role: ContactRole; notes: string | null };
+  companies?: { id: string; company_name: string }[];
 }) {
   const inv = useInvalidate();
+  const [selectedCompany, setSelectedCompany] = useState(companyId);
   const [f, setF] = useState({
     full_name: contact?.full_name ?? "",
     job_title: contact?.job_title ?? "",
@@ -347,6 +380,7 @@ export function ContactDialog({
     notes: contact?.notes ?? "",
   });
   const [dupes, setDupes] = useState<string[]>([]);
+  const effectiveCompanyId = contact ? companyId : selectedCompany || companyId;
   async function checkDupes() {
     const ors: string[] = [];
     const ph = f.phone_number.replace(/[^0-9]/g, "").slice(-9);
@@ -357,6 +391,7 @@ export function ContactDialog({
     setDupes((data ?? []).filter((d) => d.id !== contact?.id).map((d) => `${d.full_name} (${d.email ?? d.phone_number})`));
   }
   async function save() {
+    if (!effectiveCompanyId) { toast.error("Select a company first"); return; }
     if (!f.full_name.trim()) { toast.error("Name is required"); return; }
     if (f.email && !/^\S+@\S+\.\S+$/.test(f.email)) { toast.error("Invalid email"); return; }
     const payload = {
@@ -370,24 +405,19 @@ export function ContactDialog({
     };
     if (contact) {
       let query = supabase.from("contacts").update(payload).eq("id", contact.id);
-      if (contact.updated_at) query = query.eq('updated_at', contact.updated_at);
-      const { data, error } = await query.select('id');
+      if (contact.updated_at) query = query.eq("updated_at", contact.updated_at);
+      const { data, error } = await query.select("id");
       if (error) { toast.error(errMsg(error)); return; }
-      if(!data?.length){toast.error('Contact changed. Refreshing…');inv();onOpenChange(false);return;}
+      if (!data?.length) { toast.error("Contact changed. Refreshing…"); inv(); onOpenChange(false); return; }
+    } else if (leadId) {
+      const { error } = await supabase.rpc("save_lead_contact", {
+        p_lead_id: leadId,
+        payload: { ...payload, job_title: payload.job_title, department: payload.department, notes: payload.notes },
+      });
+      if (error) { toast.error(errMsg(error)); return; }
     } else {
-      const { data, error } = await supabase.from("contacts").insert({ ...payload, company_id: companyId }).select("id").single();
+      const { error } = await supabase.from("contacts").insert({ ...payload, company_id: effectiveCompanyId }).select("id").single();
       if (error) { toast.error(errMsg(error)); return; }
-      if (leadId) {
-        await supabase.from("lead_contacts").insert({ lead_id: leadId, contact_id: data.id });
-        const { data: me } = await supabase.auth.getUser();
-        if(me.user) await supabase.from("activities").insert({
-          lead_id: leadId,
-          contact_id: data.id,
-          activity_type: "contact",
-          summary: `Contact added: ${payload.full_name}`,
-          performed_by: me.user.id,
-        });
-      }
     }
     toast.success("Contact saved");
     inv();
@@ -398,6 +428,16 @@ export function ContactDialog({
       <DialogContent>
         <DialogHeader><DialogTitle>{contact ? "Edit contact" : "Add contact"}</DialogTitle></DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
+          {!contact && !companyId && companies && (
+            <Field label="Company">
+              <NativeSelect value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)} className="sm:col-span-2">
+                <option value="">Select company…</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.company_name}</option>
+                ))}
+              </NativeSelect>
+            </Field>
+          )}
           <Field label="Full name"><Input value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} /></Field>
           <Field label="Role">
             <NativeSelect value={f.contact_role} onChange={(e) => setF({ ...f, contact_role: e.target.value as ContactRole })}>
