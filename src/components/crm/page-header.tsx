@@ -1,3 +1,5 @@
+import { brandTitle } from "@/lib/brand";
+
 export function PageHeader({ title, sub, children }: { title: string; sub?: string; children?: React.ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -11,7 +13,7 @@ export function PageHeader({ title, sub, children }: { title: string; sub?: stri
 }
 
 export function pageMeta(title: string, description: string) {
-  const t = `${title} — Ledger CRM`;
+  const t = brandTitle(title);
   return {
     meta: [
       { title: t },

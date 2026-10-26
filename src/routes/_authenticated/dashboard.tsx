@@ -9,7 +9,7 @@ import { FollowUpBadge } from '@/components/crm/badges';
 import { useMe } from '@/lib/crm';
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => pageMeta("Dashboard", "Dashboard in your team's shared sales CRM."),
+  head: () => pageMeta("Dashboard", "Yaadro sales dashboard for your UAE team."),
   loader: async ({context}) => { await Promise.all([context.queryClient.ensureQueryData(leadsOptions), context.queryClient.ensureQueryData(tasksOptions)]); },
   component: Page,
 });

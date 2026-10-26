@@ -4,15 +4,16 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { errMsg } from "@/lib/crm";
+import { PoweredByCodeteak, YaadroLogo } from "@/components/brand/yaadro-logo";
 
 export const Route = createFileRoute("/pending")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Account awaiting approval — Ledger CRM" },
-      { name: "description", content: "Your CRM account is waiting for admin approval." },
-      { property: "og:title", content: "Account awaiting approval — Ledger CRM" },
-      { property: "og:description", content: "Your CRM account is waiting for admin approval." },
+      { title: "Account awaiting approval — Yaadro" },
+      { name: "description", content: "Your Yaadro account is waiting for admin approval." },
+      { property: "og:title", content: "Account awaiting approval — Yaadro" },
+      { property: "og:description", content: "Your Yaadro account is waiting for admin approval." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -80,11 +81,14 @@ function Pending() {
   return (
     <div className="grid min-h-screen place-items-center bg-background px-4">
       <div className="w-full max-w-md rounded-xl border bg-card p-8 shadow-card">
+        <div className="mb-6 flex items-center rounded-lg bg-sidebar px-4 py-3">
+          <YaadroLogo variant="full" size="lg" onDark />
+        </div>
         <h1 className="text-2xl font-semibold">{data === "active" ? "You're approved" : "Access not yet granted"}</h1>
         <p className="mt-3 text-muted-foreground">{msg}</p>
         <div className="mt-6 flex gap-2">
           {data === "active" ? (
-            <Button onClick={() => navigate({ to: "/dashboard" })}>Open CRM</Button>
+            <Button onClick={() => navigate({ to: "/dashboard" })}>Open Yaadro</Button>
           ) : (
             <Button
               variant="outline"
@@ -106,6 +110,9 @@ function Pending() {
           >
             Sign out
           </Button>
+        </div>
+        <div className="mt-8 border-t pt-4">
+          <PoweredByCodeteak size="md" />
         </div>
       </div>
     </div>

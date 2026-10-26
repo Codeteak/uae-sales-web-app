@@ -13,7 +13,7 @@ import { companiesOptions } from "@/lib/crm-data";
 import { downloadFile, errMsg, normText, parseCsv, toCsv, useMe, type Company } from "@/lib/crm";
 
 export const Route = createFileRoute("/_authenticated/companies")({
-  head: () => pageMeta("Companies", "All customer and prospect companies."),
+  head: () => pageMeta("Companies", "Customer and prospect companies for Yaadro UAE sales."),
   loader: ({ context }) => context.queryClient.ensureQueryData(companiesOptions),
   component: Page,
   errorComponent: ({ error }) => <div role="alert" className="p-6 text-sm text-danger">{error instanceof Error ? error.message : String(error)}</div>,

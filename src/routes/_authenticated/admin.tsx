@@ -11,7 +11,7 @@ import { allReasonsOptions, auditOptions, rolesOptions, settingsOptions } from '
 import { errMsg, fmtDateTime, useMe, useStages, useUsers, type Profile, type Stage, type Tables } from '@/lib/crm';
 
 export const Route = createFileRoute("/_authenticated/admin")({
-  head: () => pageMeta("Admin settings", "Admin settings in your team's shared sales CRM."),
+  head: () => pageMeta("Admin settings", "Admin settings for the Yaadro UAE sales workspace."),
   beforeLoad: async () => {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) throw redirect({ to: "/auth" });

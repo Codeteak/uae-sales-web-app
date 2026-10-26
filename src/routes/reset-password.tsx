@@ -6,15 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errMsg } from "@/lib/crm";
+import { PoweredByCodeteak, YaadroLogo } from "@/components/brand/yaadro-logo";
 
 export const Route = createFileRoute("/reset-password")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Set a new password — Ledger CRM" },
-      { name: "description", content: "Choose a new password for your CRM account." },
-      { property: "og:title", content: "Set a new password — Ledger CRM" },
-      { property: "og:description", content: "Choose a new password for your CRM account." },
+      { title: "Set a new password — Yaadro" },
+      { name: "description", content: "Choose a new password for your Yaadro account." },
+      { property: "og:title", content: "Set a new password — Yaadro" },
+      { property: "og:description", content: "Choose a new password for your Yaadro account." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -101,6 +102,9 @@ function ResetPassword() {
   return (
     <div className="grid min-h-screen place-items-center bg-background px-4">
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-xl border bg-card p-8 shadow-card">
+        <div className="mb-2 flex items-center rounded-lg bg-sidebar px-4 py-3">
+          <YaadroLogo variant="full" size="lg" onDark />
+        </div>
         <h1 className="text-2xl font-semibold">Set a new password</h1>
         <div className="space-y-1.5">
           <Label htmlFor="pw">New password</Label>
@@ -117,6 +121,9 @@ function ResetPassword() {
         <Button className="w-full" disabled={busy}>
           {busy ? "Updating…" : "Update password"}
         </Button>
+        <div className="border-t pt-4">
+          <PoweredByCodeteak size="md" />
+        </div>
       </form>
     </div>
   );

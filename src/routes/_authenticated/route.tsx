@@ -21,6 +21,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { COMMON_TIMEZONES, errMsg, useMe } from "@/lib/crm";
 import { toast } from "sonner";
 import { NativeSelect } from "@/components/crm/dialogs";
+import { PoweredByCodeteak, YaadroLogo } from "@/components/brand/yaadro-logo";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -133,18 +134,22 @@ function Layout() {
   }
 
   const side = (onNav?: () => void) => (
-    <div className="flex h-full flex-col gap-6 p-4">
-      <Link to="/dashboard" onClick={onNav} className="flex items-center gap-2 px-2 font-display font-semibold text-sidebar-accent-foreground">
-        <span className="grid size-7 place-items-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">L</span>
-        Ledger CRM
+    <div className="flex h-full flex-col p-4 pb-5">
+      <Link to="/dashboard" onClick={onNav} className="mb-5 flex shrink-0 items-center px-1">
+        <YaadroLogo variant="full" size="lg" onDark />
       </Link>
-      <Button asChild className="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90">
+      <Button
+        asChild
+        className="mb-5 shrink-0 bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
+      >
         <Link to="/leads/new" onClick={onNav}>
           <Plus /> Quick-add lead
         </Link>
       </Button>
-      <NavList onNav={onNav} unread={unread} isAdmin={!!me?.isAdmin} />
-      <div className="mt-auto border-t border-sidebar-border pt-4">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <NavList onNav={onNav} unread={unread} isAdmin={!!me?.isAdmin} />
+      </div>
+      <div className="mt-4 shrink-0 border-t border-sidebar-border pt-4">
         <div className="px-2 text-sm font-medium text-sidebar-accent-foreground">{me?.profile?.full_name}</div>
         <div className="px-2 text-xs">{me?.isAdmin ? "Admin" : "Team member"}</div>
         {me?.profile && (
@@ -181,6 +186,9 @@ function Layout() {
         <button onClick={signOut} className="mt-3 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-sidebar-accent">
           <LogOut className="size-4" /> Sign out
         </button>
+        <div className="mt-4 px-1">
+          <PoweredByCodeteak light size="md" />
+        </div>
       </div>
     </div>
   );
@@ -197,7 +205,7 @@ function Layout() {
             {side(() => setOpen(false))}
           </SheetContent>
         </Sheet>
-        <span className="font-display font-semibold text-sidebar-accent-foreground">Ledger CRM</span>
+        <YaadroLogo variant="full" size="md" onDark className="max-w-[180px]" />
         <Link to="/notifications" className="relative" aria-label="Notifications">
           <Bell className="size-5" />
           {unread > 0 && <span className="absolute -right-1 -top-1 size-2 rounded-full bg-sidebar-primary" />}

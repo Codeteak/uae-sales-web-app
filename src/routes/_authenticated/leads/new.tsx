@@ -4,7 +4,7 @@ import { PageHeader, pageMeta } from "@/components/crm/page-header";
 import { LeadForm } from "@/components/crm/lead-form";
 
 export const Route = createFileRoute("/_authenticated/leads/new")({
-  head: () => pageMeta("New lead", "Add a new sales opportunity to the shared CRM."),
+  head: () => pageMeta("New lead", "Add a new sales opportunity to Yaadro."),
   component: Page,
 });
 

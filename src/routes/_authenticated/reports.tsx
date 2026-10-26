@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Download } from 'lucide-react';
 
 export const Route = createFileRoute("/_authenticated/reports")({
-  head: () => pageMeta("Reports", "Reports in your team's shared sales CRM."),
+  head: () => pageMeta("Reports", "Pipeline and outcome reports for Yaadro UAE sales."),
   loader: ({context}) => context.queryClient.ensureQueryData(leadsOptions),
   component: Page,
 });

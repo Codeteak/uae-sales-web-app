@@ -80,15 +80,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Ledger CRM" },
-      { name: "description", content: "Shared B2B sales CRM for small teams." },
+      { title: "Yaadro — Sales CRM for UAE teams" },
+      { name: "description", content: "Yaadro sales CRM by Codeteak Technologies — pipeline, contacts and follow-ups for UAE teams." },
+      { property: "og:title", content: "Yaadro — Sales CRM for UAE teams" },
+      { property: "og:description", content: "Shared sales pipeline for Yaadro’s UAE team." },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/brand/yaadro-icon.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/brand/yaadro-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {

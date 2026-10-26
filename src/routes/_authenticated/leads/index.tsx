@@ -26,7 +26,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/leads/")({
-  head: () => pageMeta("All leads", "All leads in your team's shared sales CRM."),
+  head: () => pageMeta("All leads", "All opportunities in the Yaadro UAE sales CRM."),
   loader: async ({ context }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(leadsOptions),

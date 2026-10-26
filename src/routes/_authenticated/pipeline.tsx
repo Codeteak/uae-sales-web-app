@@ -10,7 +10,7 @@ import { openPipelineTotals } from "@/lib/crm-summary";
 import { errMsg, useStages, type LeadRow } from "@/lib/crm";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
-  head: () => pageMeta("Pipeline", "Visual pipeline of all open opportunities by stage."),
+  head: () => pageMeta("Pipeline", "Yaadro visual pipeline of open opportunities by stage."),
   loader: ({ context }) => context.queryClient.ensureQueryData(leadsOptions),
   component: Page,
   errorComponent: ({ error }) => <div role="alert" className="p-6 text-sm text-danger">{error instanceof Error ? error.message : String(error)}</div>,

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errMsg } from "@/lib/crm";
+import { PoweredByCodeteak, YaadroLogo } from "@/components/brand/yaadro-logo";
+import { BRAND, brandTitle } from "@/lib/brand";
 
 const search = z.object({ mode: z.enum(["login", "register", "forgot"]).optional() });
 
@@ -14,10 +16,10 @@ export const Route = createFileRoute("/auth")({
   validateSearch: search,
   head: () => ({
     meta: [
-      { title: "Sign in — Ledger CRM" },
-      { name: "description", content: "Sign in or request access to your team's sales CRM." },
-      { property: "og:title", content: "Sign in — Ledger CRM" },
-      { property: "og:description", content: "Sign in or request access to your team's sales CRM." },
+      { title: brandTitle("Sign in") },
+      { name: "description", content: `Sign in or request access to ${BRAND.productName} for your UAE sales team.` },
+      { property: "og:title", content: brandTitle("Sign in") },
+      { property: "og:description", content: `Sign in or request access to ${BRAND.productName}.` },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -85,15 +87,19 @@ function AuthPage() {
 
   const title = mode === "register" ? "Request access" : mode === "forgot" ? "Reset password" : "Sign in";
   return (
-    <div className="grid min-h-screen place-items-center bg-background px-4">
+    <div className="grid min-h-screen place-items-center bg-background px-4 py-10">
       <div className="w-full max-w-sm rounded-xl border bg-card p-8 shadow-card">
-        <div className="mb-6 flex items-center gap-2 font-display font-semibold">
-          <span className="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground">L</span>
-          Ledger CRM
+        <div className="mb-6 flex flex-col gap-3">
+          <div className="flex items-center rounded-lg bg-sidebar px-4 py-3">
+            <YaadroLogo variant="full" size="lg" onDark />
+          </div>
+          <p className="text-xs text-muted-foreground">{BRAND.tagline}</p>
         </div>
         <h1 className="text-2xl font-semibold">{title}</h1>
         {mode === "register" && (
-          <p className="mt-1 text-sm text-muted-foreground">The first registered account becomes an admin automatically. Later accounts may need admin approval.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Join the Yaadro UAE sales workspace. The first registered account becomes an admin automatically. Later accounts may need admin approval.
+          </p>
         )}
         {done ? (
           <p className="mt-6 rounded-md bg-accent p-4 text-sm text-accent-foreground">{done}</p>
@@ -129,14 +135,17 @@ function AuthPage() {
         )}
         <div className="mt-6 flex flex-col gap-1 text-sm">
           {mode !== "login" && (
-            <button className="text-left text-primary hover:underline" onClick={() => setMode("login")}>Back to sign in</button>
+            <button type="button" className="text-left text-primary hover:underline" onClick={() => setMode("login")}>Back to sign in</button>
           )}
           {mode === "login" && (
             <>
-              <button className="text-left text-primary hover:underline" onClick={() => setMode("register")}>No account? Request access</button>
-              <button className="text-left text-muted-foreground hover:underline" onClick={() => setMode("forgot")}>Forgot password?</button>
+              <button type="button" className="text-left text-primary hover:underline" onClick={() => setMode("register")}>No account? Request access</button>
+              <button type="button" className="text-left text-muted-foreground hover:underline" onClick={() => setMode("forgot")}>Forgot password?</button>
             </>
           )}
+        </div>
+        <div className="mt-8 border-t pt-4">
+          <PoweredByCodeteak size="md" />
         </div>
       </div>
     </div>

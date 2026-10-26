@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Download, Upload, Plus } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/contacts")({
-  head: () => pageMeta("Contacts", "Contacts in your team's shared sales CRM."),
+  head: () => pageMeta("Contacts", "Contacts in the Yaadro UAE sales CRM."),
   loader: async ({ context }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(contactsOptions),
